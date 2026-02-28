@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface Brand {
   id: string;
@@ -412,7 +413,7 @@ export default function WorkspacePage() {
                       </div>
                       <div className="bg-gray-900 border border-gray-800 rounded-2xl rounded-tl-md px-5 py-4">
                         <div className="prose prose-invert prose-sm max-w-none">
-                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                         </div>
                         {/* Action buttons */}
                         {msg.content && !isStreaming && (
