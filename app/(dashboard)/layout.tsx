@@ -72,7 +72,7 @@ export default function DashboardLayout({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <span className="font-bold text-sm">🤖 AI Marketing Agent</span>
+        <span className="font-bold text-sm">🤖 AI Marketing Agent(v1.0)</span>
         <div className="w-6" />
       </div>
 
@@ -95,7 +95,7 @@ export default function DashboardLayout({
             <span className="text-2xl">🤖</span>
             <div>
               <p className="font-bold text-white text-sm">AI Marketing Agent</p>
-              <p className="text-[10px] text-gray-500">惠邦行銷 · 內容產出系統</p>
+              <p className="text-[10px] text-gray-500">惠邦行銷 · 內容產出系統 v1.0</p>
             </div>
           </Link>
         </div>
@@ -110,8 +110,8 @@ export default function DashboardLayout({
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${isActive
-                    ? "bg-blue-600/20 text-blue-400"
-                    : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+                  ? "bg-blue-600/20 text-blue-400"
+                  : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
                   }`}
               >
                 <span className="text-lg">{item.icon}</span>
