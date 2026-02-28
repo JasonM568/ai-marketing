@@ -1,42 +1,56 @@
-import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { jwtVerify } from "jose";
 
-const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET || "fallback-secret-change-me"
-);
+const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-change-me";
 
-export async function signToken(payload: {
+interface AuthUser {
   userId: string;
   email: string;
-  role: string;
-}) {
-  return new SignJWT(payload)
-    .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime("7d")
-    .setIssuedAt()
-    .sign(secret);
+  role: "admin" | "editor";
 }
 
-export async function verifyToken(token: string) {
+// ===== New: getAuthUser (for role-based access control) =====
+export async function getAuthUser(): Promise<AuthUser | null> {
   try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("agent-token")?.value;
+    if (!token) return null;
+
+    const secret = new TextEncoder().encode(JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
-    return payload as { userId: string; email: string; role: string };
+    return {
+      userId: payload.userId as string,
+      email: payload.email as string,
+      role: (payload.role as string) === "admin" ? "admin" : "editor",
+    };
   } catch {
     return null;
   }
 }
 
-export async function getSession() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("agent-token")?.value;
-  if (!token) return null;
-  return verifyToken(token);
+export function isAdmin(user: AuthUser | null): boolean {
+  return user?.role === "admin";
 }
 
+// ===== Existing: requireAuth (backward compatible) =====
 export async function requireAuth() {
-  const session = await getSession();
-  if (!session) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("agent-token")?.value;
+
+  if (!token) {
     throw new Error("Unauthorized");
   }
-  return session;
+
+  try {
+    const secret = new TextEncoder().encode(JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+    return {
+      id: payload.userId as string,
+      userId: payload.userId as string,
+      email: payload.email as string,
+      role: (payload.role as string) || "admin",
+    };
+  } catch {
+    throw new Error("Unauthorized");
+  }
 }

@@ -2,152 +2,136 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { brands, agents, conversations } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import Anthropic from "@anthropic-ai/sdk";
+import { getAuthUser } from "@/lib/auth";
 
-export const runtime = "nodejs";
-export const maxDuration = 60;
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     const body = await request.json();
-    const {
-      brandId,
-      agentId,
-      conversationId,
-      messages: userMessages,
-    } = body;
+    const { brandId, agentId, conversationId, messages } = body;
 
-    if (!brandId || !agentId || !userMessages?.length) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
+    if (!messages || messages.length === 0) {
+      return new Response(JSON.stringify({ error: "Messages required" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
-    // Fetch brand and agent data
-    const [brand] = await db
-      .select()
-      .from(brands)
-      .where(eq(brands.id, brandId))
-      .limit(1);
-
-    const [agent] = await db
-      .select()
-      .from(agents)
-      .where(eq(agents.id, agentId))
-      .limit(1);
-
-    if (!brand || !agent) {
-      return new Response(
-        JSON.stringify({ error: "Brand or agent not found" }),
-        { status: 404, headers: { "Content-Type": "application/json" } }
-      );
+    // Fetch brand data
+    let brandData = null;
+    if (brandId) {
+      const [brand] = await db
+        .select()
+        .from(brands)
+        .where(eq(brands.id, brandId))
+        .limit(1);
+      brandData = brand;
     }
 
-    // Build system prompt with brand context
-    const systemPrompt = buildSystemPrompt(agent, brand);
+    // Fetch agent data
+    let agentData = null;
+    if (agentId) {
+      const [agent] = await db
+        .select()
+        .from(agents)
+        .where(eq(agents.id, agentId))
+        .limit(1);
+      agentData = agent;
+    }
+
+    // Build system prompt
+    let systemPrompt = agentData?.systemPrompt || "你是一位專業的行銷內容助手。";
+
+    if (brandData) {
+      systemPrompt += `\n\n## 當前服務品牌：${brandData.name}`;
+      systemPrompt += `\n**產業：** ${brandData.industry || "未設定"}`;
+
+      if (brandData.brandVoice)
+        systemPrompt += `\n\n### 品牌聲音\n${brandData.brandVoice}`;
+      if (brandData.icp)
+        systemPrompt += `\n\n### 目標受眾\n${brandData.icp}`;
+      if (brandData.services)
+        systemPrompt += `\n\n### 產品服務\n${brandData.services}`;
+      if (brandData.contentPillars)
+        systemPrompt += `\n\n### 內容策略\n${brandData.contentPillars}`;
+      if (brandData.pastHits)
+        systemPrompt += `\n\n### 高成效參考\n${brandData.pastHits}`;
+      if (brandData.brandStory)
+        systemPrompt += `\n\n### 品牌故事\n${brandData.brandStory}`;
+    }
+
+    const today = new Date().toLocaleDateString("zh-TW", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    systemPrompt += `\n\n**今天日期：${today}**`;
+    systemPrompt += `\n\n## 重要提醒`;
+    systemPrompt += `\n- 所有產出必須符合品牌聲音和風格`;
+    systemPrompt += `\n- 使用繁體中文`;
+    systemPrompt += `\n- 提供可直接使用的完整內容`;
 
     // Call Claude API with streaming
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "API key not configured" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const claudeMessages = userMessages.map((msg: { role: string; content: string }) => ({
-      role: msg.role,
-      content: msg.content,
-    }));
-
-    const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: claudeMessages,
-        stream: true,
-      }),
+    const stream = await anthropic.messages.stream({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: messages.map((m: { role: string; content: string }) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      })),
     });
 
-    if (!claudeResponse.ok) {
-      const errorText = await claudeResponse.text();
-      console.error("Claude API error:", errorText);
-      return new Response(
-        JSON.stringify({ error: "AI service error" }),
-        { status: 502, headers: { "Content-Type": "application/json" } }
-      );
+    // Save conversation with createdBy
+    if (!conversationId) {
+      const userMessage = messages[messages.length - 1]?.content || "";
+      const title =
+        userMessage.slice(0, 50) + (userMessage.length > 50 ? "..." : "");
+      db.insert(conversations)
+        .values({
+          brandId: brandId || null,
+          agentId: agentId || null,
+          createdBy: user.userId,
+          title,
+          messages: messages,
+          status: "active",
+        })
+        .returning()
+        .then(() => {})
+        .catch(console.error);
     }
 
-    // Stream the response
+    // Return SSE stream
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
-        const reader = claudeResponse.body?.getReader();
-        if (!reader) {
-          controller.close();
-          return;
-        }
-
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let fullResponse = "";
-
         try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
-
-            for (const line of lines) {
-              if (line.startsWith("data: ")) {
-                const data = line.slice(6).trim();
-                if (data === "[DONE]") continue;
-
-                try {
-                  const parsed = JSON.parse(data);
-
-                  if (
-                    parsed.type === "content_block_delta" &&
-                    parsed.delta?.type === "text_delta"
-                  ) {
-                    const text = parsed.delta.text;
-                    fullResponse += text;
-                    controller.enqueue(
-                      encoder.encode(`data: ${JSON.stringify({ text })}\n\n`)
-                    );
-                  }
-
-                  if (parsed.type === "message_stop") {
-                    // Save conversation async (don't block stream)
-                    saveConversation(
-                      conversationId,
-                      brandId,
-                      agentId,
-                      userMessages,
-                      fullResponse
-                    ).catch(console.error);
-                  }
-                } catch {
-                  // Skip unparseable lines
-                }
-              }
+          for await (const event of stream) {
+            if (
+              event.type === "content_block_delta" &&
+              event.delta.type === "text_delta"
+            ) {
+              const data = JSON.stringify({ text: event.delta.text });
+              controller.enqueue(encoder.encode(`data: ${data}\n\n`));
             }
           }
-        } catch (err) {
-          console.error("Stream error:", err);
-        } finally {
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
+        } catch (error) {
+          console.error("Stream error:", error);
+          controller.error(error);
         }
       },
     });
@@ -161,99 +145,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Chat error:", error);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
-  }
-}
-
-function buildSystemPrompt(
-  agent: { systemPrompt: string; name: string; role: string },
-  brand: {
-    name: string;
-    industry: string | null;
-    brandVoice: string | null;
-    icp: string | null;
-    services: string | null;
-    contentPillars: string | null;
-    pastHits: string | null;
-    brandStory: string | null;
-    platforms: unknown;
-  }
-): string {
-  const brandContext = `
-## 當前服務品牌：${brand.name}
-${brand.industry ? `**產業：** ${brand.industry}` : ""}
-
-${brand.brandVoice ? `### 品牌聲音\n${brand.brandVoice}` : ""}
-
-${brand.icp ? `### 目標受眾\n${brand.icp}` : ""}
-
-${brand.services ? `### 產品服務\n${brand.services}` : ""}
-
-${brand.contentPillars ? `### 內容策略\n${brand.contentPillars}` : ""}
-
-${brand.pastHits ? `### 高成效參考\n${brand.pastHits}` : ""}
-
-${brand.brandStory ? `### 品牌故事\n${brand.brandStory}` : ""}
-
-${brand.platforms ? `**可用平台：** ${JSON.stringify(brand.platforms)}` : ""}
-`.trim();
-
-  return `${agent.systemPrompt}
-
----
-
-# 品牌資料（自動注入）
-${brandContext}
-
----
-
-**今天日期：${new Date().toLocaleDateString("zh-TW", { year: "numeric", month: "long", day: "numeric" })}**
-
-## 重要提醒
-- 所有產出內容必須符合上述品牌調性和目標受眾
-- 使用繁體中文回覆
-- 產出內容時請標明適用平台和格式
-- 每次回覆結尾提供「建議下一步」供使用者參考`;
-}
-
-async function saveConversation(
-  conversationId: string | undefined,
-  brandId: string,
-  agentId: string,
-  userMessages: { role: string; content: string }[],
-  assistantResponse: string
-) {
-  try {
-    const allMessages = [
-      ...userMessages,
-      { role: "assistant", content: assistantResponse },
-    ];
-
-    if (conversationId) {
-      // Update existing conversation
-      await db
-        .update(conversations)
-        .set({
-          messages: allMessages,
-          updatedAt: new Date(),
-        })
-        .where(eq(conversations.id, conversationId));
-    } else {
-      // Create new conversation
-      const title =
-        userMessages[0]?.content?.slice(0, 100) || "新對話";
-      await db.insert(conversations).values({
-        brandId,
-        agentId,
-        title,
-        messages: allMessages,
-        status: "active",
-      });
-    }
-  } catch (err) {
-    console.error("Error saving conversation:", err);
+    return new Response(JSON.stringify({ error: "Chat failed" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }

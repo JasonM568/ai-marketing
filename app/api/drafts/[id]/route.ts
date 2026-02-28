@@ -2,12 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { drafts, brands, agents } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { getAuthUser, isAdmin } from "@/lib/auth";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
     const [draft] = await db
       .select({
@@ -20,6 +26,7 @@ export async function GET(
         content: drafts.content,
         status: drafts.status,
         metadata: drafts.metadata,
+        createdBy: drafts.createdBy,
         createdAt: drafts.createdAt,
         updatedAt: drafts.updatedAt,
         brandName: brands.name,
@@ -38,6 +45,11 @@ export async function GET(
       return NextResponse.json({ error: "Draft not found" }, { status: 404 });
     }
 
+    // Editor can only view own drafts
+    if (!isAdmin(user) && draft.createdBy !== user.userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     return NextResponse.json(draft);
   } catch (error) {
     console.error("Error fetching draft:", error);
@@ -53,7 +65,26 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
+
+    // Check ownership for editor
+    if (!isAdmin(user)) {
+      const [existing] = await db
+        .select({ createdBy: drafts.createdBy })
+        .from(drafts)
+        .where(eq(drafts.id, id))
+        .limit(1);
+
+      if (!existing || existing.createdBy !== user.userId) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+
     const body = await request.json();
     const { content, status, topic, platform } = body;
 
@@ -88,7 +119,26 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
+
+    // Check ownership for editor
+    if (!isAdmin(user)) {
+      const [existing] = await db
+        .select({ createdBy: drafts.createdBy })
+        .from(drafts)
+        .where(eq(drafts.id, id))
+        .limit(1);
+
+      if (!existing || existing.createdBy !== user.userId) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+
     const [deleted] = await db
       .delete(drafts)
       .where(eq(drafts.id, id))

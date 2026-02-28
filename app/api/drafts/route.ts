@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { drafts, brands, agents } from "@/lib/db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
+import { getAuthUser, isAdmin } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const brandId = searchParams.get("brandId");
     const agentId = searchParams.get("agentId");
@@ -12,6 +18,12 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search");
 
     const conditions = [];
+
+    // Editor only sees own drafts
+    if (!isAdmin(user)) {
+      conditions.push(eq(drafts.createdBy, user.userId));
+    }
+
     if (brandId) conditions.push(eq(drafts.brandId, brandId));
     if (agentId) conditions.push(eq(drafts.agentId, agentId));
     if (status && status !== "all") conditions.push(eq(drafts.status, status));
@@ -31,6 +43,7 @@ export async function GET(request: NextRequest) {
         content: drafts.content,
         status: drafts.status,
         metadata: drafts.metadata,
+        createdBy: drafts.createdBy,
         createdAt: drafts.createdAt,
         updatedAt: drafts.updatedAt,
         brandName: brands.name,
@@ -57,6 +70,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const { brandId, agentId, conversationId, platform, topic, content } = body;
 
@@ -77,6 +95,7 @@ export async function POST(request: NextRequest) {
         topic: topic || null,
         content,
         status: "draft",
+        createdBy: user.userId,
       })
       .returning();
 

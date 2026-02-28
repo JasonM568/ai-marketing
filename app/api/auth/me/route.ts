@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 
 export async function GET() {
   try {
-    const session = await requireAuth();
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     return NextResponse.json({
-      userId: session.userId,
-      email: session.email,
-      role: session.role,
+      userId: user.userId,
+      email: user.email,
+      role: user.role,
     });
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

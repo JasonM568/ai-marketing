@@ -1,10 +1,26 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { drafts, brands, agents, conversations } from "@/lib/db/schema";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, and } from "drizzle-orm";
+import { getAuthUser, isAdmin } from "@/lib/auth";
 
 export async function GET() {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const admin = isAdmin(user);
+
+    // Scoped conditions for editors
+    const draftScope = admin
+      ? undefined
+      : eq(drafts.createdBy, user.userId);
+    const convScope = admin
+      ? undefined
+      : eq(conversations.createdBy, user.userId);
+
     // Total counts
     const [brandCount] = await db
       .select({ count: sql<number>`count(*)::int` })
@@ -16,11 +32,13 @@ export async function GET() {
 
     const [draftCount] = await db
       .select({ count: sql<number>`count(*)::int` })
-      .from(drafts);
+      .from(drafts)
+      .where(draftScope);
 
     const [conversationCount] = await db
       .select({ count: sql<number>`count(*)::int` })
-      .from(conversations);
+      .from(conversations)
+      .where(convScope);
 
     // Drafts by status
     const draftsByStatus = await db
@@ -29,9 +47,10 @@ export async function GET() {
         count: sql<number>`count(*)::int`,
       })
       .from(drafts)
+      .where(draftScope)
       .groupBy(drafts.status);
 
-    // Drafts by brand (top 10)
+    // Drafts by brand
     const draftsByBrand = await db
       .select({
         brandName: brands.name,
@@ -40,11 +59,12 @@ export async function GET() {
       })
       .from(drafts)
       .leftJoin(brands, eq(drafts.brandId, brands.id))
+      .where(draftScope)
       .groupBy(brands.name, brands.brandCode)
       .orderBy(desc(sql`count(*)`))
       .limit(10);
 
-    // Drafts by agent (top 12)
+    // Drafts by agent
     const draftsByAgent = await db
       .select({
         agentName: agents.name,
@@ -54,11 +74,12 @@ export async function GET() {
       })
       .from(drafts)
       .leftJoin(agents, eq(drafts.agentId, agents.id))
+      .where(draftScope)
       .groupBy(agents.name, agents.icon, agents.category)
       .orderBy(desc(sql`count(*)`))
       .limit(12);
 
-    // Recent drafts (last 5)
+    // Recent drafts
     const recentDrafts = await db
       .select({
         id: drafts.id,
@@ -72,17 +93,25 @@ export async function GET() {
       .from(drafts)
       .leftJoin(brands, eq(drafts.brandId, brands.id))
       .leftJoin(agents, eq(drafts.agentId, agents.id))
+      .where(draftScope)
       .orderBy(desc(drafts.createdAt))
       .limit(5);
 
-    // Drafts per day (last 7 days)
+    // Daily drafts (last 7 days)
+    const dailyConditions = [
+      sql`${drafts.createdAt} > now() - interval '7 days'`,
+    ];
+    if (!admin) {
+      dailyConditions.push(sql`${drafts.createdBy} = ${user.userId}`);
+    }
+
     const dailyDrafts = await db
       .select({
         date: sql<string>`to_char(${drafts.createdAt}, 'MM/DD')`,
         count: sql<number>`count(*)::int`,
       })
       .from(drafts)
-      .where(sql`${drafts.createdAt} > now() - interval '7 days'`)
+      .where(and(...dailyConditions))
       .groupBy(sql`to_char(${drafts.createdAt}, 'MM/DD')`)
       .orderBy(sql`to_char(${drafts.createdAt}, 'MM/DD')`);
 
