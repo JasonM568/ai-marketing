@@ -47,11 +47,24 @@ export const agents = pgTable("agents", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const conversations = pgTable("conversations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  brandId: uuid("brand_id"),
+  agentId: uuid("agent_id"),
+  createdBy: uuid("created_by"),
+  title: varchar("title", { length: 200 }),
+  messages: jsonb("messages").default([]),
+  status: varchar("status", { length: 20 }).default("active"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const drafts = pgTable("drafts", {
   id: uuid("id").defaultRandom().primaryKey(),
-  brandId: uuid("brand_id").references(() => brands.id),
-  agentId: uuid("agent_id").references(() => agents.id),
-  createdBy: uuid("created_by").references(() => adminUsers.id),
+  conversationId: uuid("conversation_id"),
+  brandId: uuid("brand_id"),
+  agentId: uuid("agent_id"),
+  createdBy: uuid("created_by"),
   platform: varchar("platform", { length: 20 }),
   topic: varchar("topic", { length: 200 }),
   content: text("content").notNull(),
@@ -61,17 +74,8 @@ export const drafts = pgTable("drafts", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const conversations = pgTable("conversations", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  brandId: uuid("brand_id").references(() => brands.id),
-  agentId: uuid("agent_id").references(() => agents.id),
-  createdBy: uuid("created_by").references(() => adminUsers.id),
-  title: varchar("title", { length: 200 }),
-  messages: jsonb("messages").default([]),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
 // Type exports
 export type Brand = typeof brands.$inferSelect;
 export type Agent = typeof agents.$inferSelect;
+export type Conversation = typeof conversations.$inferSelect;
+export type Draft = typeof drafts.$inferSelect;
