@@ -71,3 +71,7 @@ export const conversations = pgTable("conversations", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// Type exports
+export type Brand = typeof brands.$inferSelect;
+export type Agent = typeof agents.$inferSelect;
