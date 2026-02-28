@@ -210,6 +210,8 @@ ${brandContext}
 
 ---
 
+**今天日期：${new Date().toLocaleDateString("zh-TW", { year: "numeric", month: "long", day: "numeric" })}**
+
 ## 重要提醒
 - 所有產出內容必須符合上述品牌調性和目標受眾
 - 使用繁體中文回覆
