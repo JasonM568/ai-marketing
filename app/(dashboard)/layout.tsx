@@ -53,8 +53,10 @@ export default function DashboardLayout({
   }
 
   const navItems = [
+    { href: "/dashboard", label: "工作總覽", icon: "📊", desc: "數據與快速指令" },
     { href: "/workspace", label: "工作台", icon: "✨", desc: "AI 內容產出" },
     { href: "/brands", label: "品牌管理", icon: "🏷️", desc: "品牌資料庫" },
+    { href: "/agents", label: "AI 代理", icon: "🤖", desc: "代理管理" },
     { href: "/drafts", label: "草稿庫", icon: "📄", desc: "產出記錄" },
   ];
 
@@ -84,9 +86,8 @@ export default function DashboardLayout({
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-gray-900 border-r border-white/10 z-50 transform transition-transform duration-200 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } lg:translate-x-0`}
+        className={`fixed top-0 left-0 h-full w-64 bg-gray-900 border-r border-white/10 z-50 transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          } lg:translate-x-0`}
       >
         {/* Logo */}
         <div className="p-5 border-b border-white/10">
@@ -108,11 +109,10 @@ export default function DashboardLayout({
                 key={item.href}
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${
-                  isActive
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${isActive
                     ? "bg-blue-600/20 text-blue-400"
                     : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
-                }`}
+                  }`}
               >
                 <span className="text-lg">{item.icon}</span>
                 <div>
