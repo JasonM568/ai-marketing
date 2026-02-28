@@ -46,8 +46,8 @@ export default function WorkspacePage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    fetch("/api/brands").then((r) => r.json()).then(setBrands).catch(console.error);
-    fetch("/api/agents").then((r) => r.json()).then(setAgents).catch(console.error);
+    fetch("/api/brands").then((r) => r.json()).then((d) => setBrands(Array.isArray(d) ? d : [])).catch(console.error);
+    fetch("/api/agents").then((r) => r.json()).then((d) => setAgents(Array.isArray(d) ? d : [])).catch(console.error);
   }, []);
 
   useEffect(() => {
