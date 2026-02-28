@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface Agent {
   id: string;
@@ -96,20 +97,18 @@ export default function AgentDetailPage() {
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-bold text-white">{agent.name}</h1>
                 <span
-                  className={`px-2.5 py-0.5 text-xs rounded-full ${
-                    agent.isActive
-                      ? "bg-green-900/50 text-green-400"
-                      : "bg-gray-800 text-gray-500"
-                  }`}
+                  className={`px-2.5 py-0.5 text-xs rounded-full ${agent.isActive
+                    ? "bg-green-900/50 text-green-400"
+                    : "bg-gray-800 text-gray-500"
+                    }`}
                 >
                   {agent.isActive ? "運作中" : "停用"}
                 </span>
                 <span
-                  className={`px-2.5 py-0.5 text-xs rounded-full ${
-                    isContent
-                      ? "bg-blue-900/30 text-blue-400"
-                      : "bg-purple-900/30 text-purple-400"
-                  }`}
+                  className={`px-2.5 py-0.5 text-xs rounded-full ${isContent
+                    ? "bg-blue-900/30 text-blue-400"
+                    : "bg-purple-900/30 text-purple-400"
+                    }`}
                 >
                   {isContent ? "內容產出組" : "策略分析組"}
                 </span>
@@ -127,11 +126,10 @@ export default function AgentDetailPage() {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-3 text-sm font-medium transition-colors flex items-center gap-2 border-b-2 ${
-              activeTab === tab.key
-                ? "border-blue-500 text-blue-400"
-                : "border-transparent text-gray-500 hover:text-gray-300"
-            }`}
+            className={`px-4 py-3 text-sm font-medium transition-colors flex items-center gap-2 border-b-2 ${activeTab === tab.key
+              ? "border-blue-500 text-blue-400"
+              : "border-transparent text-gray-500 hover:text-gray-300"
+              }`}
           >
             <span>{tab.icon}</span>
             {tab.label}
@@ -175,11 +173,10 @@ export default function AgentDetailPage() {
                 {(agent.capabilities || []).map((cap, i) => (
                   <span
                     key={i}
-                    className={`px-3 py-1.5 text-sm rounded-lg ${
-                      isContent
-                        ? "bg-blue-900/30 text-blue-400"
-                        : "bg-purple-900/30 text-purple-400"
-                    }`}
+                    className={`px-3 py-1.5 text-sm rounded-lg ${isContent
+                      ? "bg-blue-900/30 text-blue-400"
+                      : "bg-purple-900/30 text-purple-400"
+                      }`}
                   >
                     {cap}
                   </span>
@@ -215,7 +212,7 @@ export default function AgentDetailPage() {
               </button>
             </div>
             <div className="bg-gray-950 border border-gray-800 rounded-lg p-6 prose prose-invert prose-sm max-w-none">
-              <ReactMarkdown>{agent.systemPrompt}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{agent.systemPrompt}</ReactMarkdown>
             </div>
           </div>
         )}

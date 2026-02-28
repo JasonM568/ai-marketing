@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { Brand } from "@/lib/db/schema";
 
 const TABS = [
@@ -177,11 +178,10 @@ export default function BrandDetailPage() {
               setEditing(false);
               setActiveTab(tab.id);
             }}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
-              activeTab === tab.id
-                ? "bg-blue-600/15 text-blue-400 border border-blue-500/25"
-                : "text-gray-500 hover:text-gray-300 hover:bg-white/5 border border-transparent"
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${activeTab === tab.id
+              ? "bg-blue-600/15 text-blue-400 border border-blue-500/25"
+              : "text-gray-500 hover:text-gray-300 hover:bg-white/5 border border-transparent"
+              }`}
           >
             <span>{tab.icon}</span>
             <span>{tab.label}</span>
@@ -232,7 +232,7 @@ export default function BrandDetailPage() {
             />
           ) : currentContent ? (
             <div className="prose prose-invert prose-sm max-w-none prose-headings:text-white prose-p:text-gray-400 prose-li:text-gray-400 prose-strong:text-gray-200 prose-code:text-blue-300">
-              <ReactMarkdown>{currentContent}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentContent}</ReactMarkdown>
             </div>
           ) : (
             <div className="text-center py-12">
