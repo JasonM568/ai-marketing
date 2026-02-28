@@ -33,6 +33,7 @@ interface Message {
 type Step = "brand" | "agent" | "chat";
 
 export default function WorkspacePage() {
+  const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>("brand");
   const [brands, setBrands] = useState<Brand[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -55,6 +56,27 @@ export default function WorkspacePage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (brands.length === 0 || agents.length === 0) return;
+    const bId = searchParams.get("brandId");
+    const aId = searchParams.get("agentId");
+    const topic = searchParams.get("topic");
+    if (bId) {
+      const brand = brands.find((b: any) => b.id === bId);
+      if (brand) {
+        setSelectedBrand(brand);
+        if (aId) {
+          const agent = agents.find((a: any) => a.id === aId);
+          if (agent) {
+            setSelectedAgent(agent);
+            setStep("chat");
+            if (topic) setInput(topic);
+          } else { setStep("agent"); }
+        } else { setStep("agent"); }
+      }
+    }
+  }, [brands, agents, searchParams]);
 
   function selectBrand(brand: Brand) {
     setSelectedBrand(brand);
