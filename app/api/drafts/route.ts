@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { drafts, brands, agents } from "@/lib/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const brandId = searchParams.get("brandId");
+    const agentId = searchParams.get("agentId");
+    const status = searchParams.get("status");
+    const search = searchParams.get("search");
 
     const conditions = [];
-    if (brandId) {
-      conditions.push(eq(drafts.brandId, brandId));
+    if (brandId) conditions.push(eq(drafts.brandId, brandId));
+    if (agentId) conditions.push(eq(drafts.agentId, agentId));
+    if (status && status !== "all") conditions.push(eq(drafts.status, status));
+    if (search) {
+      conditions.push(
+        sql`(${drafts.topic} ILIKE ${"%" + search + "%"} OR ${drafts.content} ILIKE ${"%" + search + "%"})`
+      );
     }
 
     const allDrafts = await db
@@ -22,12 +30,20 @@ export async function GET(request: NextRequest) {
         topic: drafts.topic,
         content: drafts.content,
         status: drafts.status,
+        metadata: drafts.metadata,
         createdAt: drafts.createdAt,
+        updatedAt: drafts.updatedAt,
+        brandName: brands.name,
+        brandCode: brands.brandCode,
+        agentName: agents.name,
+        agentIcon: agents.icon,
       })
       .from(drafts)
+      .leftJoin(brands, eq(drafts.brandId, brands.id))
+      .leftJoin(agents, eq(drafts.agentId, agents.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(drafts.createdAt))
-      .limit(50);
+      .limit(100);
 
     return NextResponse.json(allDrafts);
   } catch (error) {
