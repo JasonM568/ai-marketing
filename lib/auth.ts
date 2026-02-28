@@ -54,3 +54,13 @@ export async function requireAuth() {
     throw new Error("Unauthorized");
   }
 }
+
+// ===== signToken (used by login API) =====
+export async function signToken(payload: Record<string, unknown>): Promise<string> {
+  const { SignJWT } = await import("jose");
+  const secret = new TextEncoder().encode(JWT_SECRET);
+  return new SignJWT(payload)
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("7d")
+    .sign(secret);
+}
