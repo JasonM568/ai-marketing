@@ -19,6 +19,7 @@ interface Agent {
   category: string;
   icon: string;
   description: string;
+  agentCode: string;
   capabilities: string[];
 }
 
