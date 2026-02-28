@@ -46,7 +46,7 @@ export default function WorkspacePage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    fetch("/api/brands", { credentials: "include" }).then((r) => r.json()).then((d) => setBrands(Array.isArray(d) ? d : [])).catch(console.error);
+    fetch("/api/brands", { credentials: "include" }).then((r) => r.json()).then((d) => setBrands(d.brands || d)).catch(console.error);
     fetch("/api/agents", { credentials: "include" }).then((r) => r.json()).then((d) => setAgents(Array.isArray(d) ? d : [])).catch(console.error);
   }, []);
 
@@ -221,13 +221,12 @@ export default function WorkspacePage() {
       <div className="flex items-center gap-2 px-1 py-3 text-sm flex-shrink-0">
         <button
           onClick={() => resetToStep("brand")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${
-            step === "brand"
-              ? "bg-blue-600 text-white"
-              : selectedBrand
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${step === "brand"
+            ? "bg-blue-600 text-white"
+            : selectedBrand
               ? "bg-gray-800 text-blue-400 hover:bg-gray-700 cursor-pointer"
               : "bg-gray-800/50 text-gray-500"
-          }`}
+            }`}
         >
           <span>①</span>
           <span>{selectedBrand ? selectedBrand.name : "選擇品牌"}</span>
@@ -235,13 +234,12 @@ export default function WorkspacePage() {
         <span className="text-gray-600">→</span>
         <button
           onClick={() => selectedBrand && resetToStep("agent")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${
-            step === "agent"
-              ? "bg-blue-600 text-white"
-              : selectedAgent
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${step === "agent"
+            ? "bg-blue-600 text-white"
+            : selectedAgent
               ? "bg-gray-800 text-purple-400 hover:bg-gray-700 cursor-pointer"
               : "bg-gray-800/50 text-gray-500"
-          }`}
+            }`}
         >
           <span>②</span>
           <span>
@@ -252,11 +250,10 @@ export default function WorkspacePage() {
         </button>
         <span className="text-gray-600">→</span>
         <div
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${
-            step === "chat"
-              ? "bg-blue-600 text-white"
-              : "bg-gray-800/50 text-gray-500"
-          }`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${step === "chat"
+            ? "bg-blue-600 text-white"
+            : "bg-gray-800/50 text-gray-500"
+            }`}
         >
           <span>③</span>
           <span>對話產出</span>
@@ -398,9 +395,8 @@ export default function WorkspacePage() {
               {messages.map((msg, i) => (
                 <div
                   key={i}
-                  className={`mb-4 ${
-                    msg.role === "user" ? "flex justify-end" : ""
-                  }`}
+                  className={`mb-4 ${msg.role === "user" ? "flex justify-end" : ""
+                    }`}
                 >
                   {msg.role === "user" ? (
                     <div className="bg-blue-600 text-white rounded-2xl rounded-br-md px-4 py-3 max-w-[80%]">
@@ -516,11 +512,10 @@ function AgentSelectCard({
         {(agent.capabilities || []).slice(0, 2).map((c, i) => (
           <span
             key={i}
-            className={`px-1.5 py-0.5 text-[10px] rounded-full ${
-              isContent
-                ? "bg-blue-900/30 text-blue-400"
-                : "bg-purple-900/30 text-purple-400"
-            }`}
+            className={`px-1.5 py-0.5 text-[10px] rounded-full ${isContent
+              ? "bg-blue-900/30 text-blue-400"
+              : "bg-purple-900/30 text-purple-400"
+              }`}
           >
             {c}
           </span>
