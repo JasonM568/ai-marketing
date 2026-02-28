@@ -35,6 +35,11 @@ export default function AgentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [copying, setCopying] = useState(false);
+  const [userRole, setUserRole] = useState<string>("editor");
+
+  useEffect(() => {
+    fetch("/api/auth/me").then(r => r.json()).then(d => setUserRole(d.role || "editor")).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (params.id) {
@@ -122,7 +127,7 @@ export default function AgentDetailPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-800">
-        {tabs.map((tab) => (
+        {tabs.filter(tab => tab.key !== "prompt" || userRole === "admin").map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
@@ -200,7 +205,7 @@ export default function AgentDetailPage() {
           </div>
         )}
 
-        {activeTab === "prompt" && (
+        {activeTab === "prompt" && userRole === "admin" && (
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-white font-semibold">System Prompt</h3>
