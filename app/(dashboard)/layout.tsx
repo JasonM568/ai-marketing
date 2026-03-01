@@ -52,13 +52,18 @@ export default function DashboardLayout({
     );
   }
 
-  const navItems = [
+  const allNavItems = [
     { href: "/dashboard", label: "工作總覽", icon: "📊", desc: "數據與快速指令" },
     { href: "/workspace", label: "工作台", icon: "✨", desc: "AI 內容產出" },
     { href: "/brands", label: "品牌管理", icon: "🏷️", desc: "品牌資料庫" },
     { href: "/agents", label: "AI 代理", icon: "🤖", desc: "代理管理" },
     { href: "/drafts", label: "草稿庫", icon: "📄", desc: "產出記錄" },
   ];
+
+  // Subscriber: hide agent management
+  const navItems = session?.role === "subscriber"
+    ? allNavItems.filter((item) => item.href !== "/agents")
+    : allNavItems;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -129,7 +134,7 @@ export default function DashboardLayout({
           <div className="flex items-center justify-between px-3 py-2">
             <div>
               <p className="text-sm text-gray-300">{session?.email?.split("@")[0]}</p>
-              <p className="text-[10px] text-gray-600">{session?.role === "admin" ? "管理員" : "編輯"}</p>
+              <p className="text-[10px] text-gray-600">{session?.role === "admin" ? "管理員" : session?.role === "subscriber" ? "訂閱會員" : "編輯"}</p>
             </div>
             <button
               onClick={handleLogout}

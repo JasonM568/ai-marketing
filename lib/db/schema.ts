@@ -17,6 +17,7 @@ export const brands = pgTable("brands", {
   name: varchar("name", { length: 100 }).notNull(),
   industry: varchar("industry", { length: 50 }),
   status: varchar("status", { length: 20 }).default("active").notNull(),
+  createdBy: uuid("created_by"),
   brandVoice: text("brand_voice"),
   icp: text("icp"),
   services: text("services"),

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { brands, agents, conversations } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, isSubscriber } from "@/lib/auth";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -38,6 +38,14 @@ export async function POST(request: NextRequest) {
         .where(eq(brands.id, brandId))
         .limit(1);
       brandData = brand;
+
+      // Subscriber: can only use own brands
+      if (isSubscriber(user) && brand && brand.createdBy !== user.userId) {
+        return new Response(JSON.stringify({ error: "權限不足：只能使用自己的品牌" }), {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Fetch agent data

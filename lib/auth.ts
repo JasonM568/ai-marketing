@@ -6,7 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-change-me";
 interface AuthUser {
   userId: string;
   email: string;
-  role: "admin" | "editor";
+  role: "admin" | "editor" | "subscriber";
 }
 
 // ===== New: getAuthUser (for role-based access control) =====
@@ -18,10 +18,12 @@ export async function getAuthUser(): Promise<AuthUser | null> {
 
     const secret = new TextEncoder().encode(JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
+    const role = payload.role as string;
+    const validRole = role === "admin" ? "admin" : role === "subscriber" ? "subscriber" : "editor";
     return {
       userId: payload.userId as string,
       email: payload.email as string,
-      role: (payload.role as string) === "admin" ? "admin" : "editor",
+      role: validRole,
     };
   } catch {
     return null;
@@ -30,6 +32,10 @@ export async function getAuthUser(): Promise<AuthUser | null> {
 
 export function isAdmin(user: AuthUser | null): boolean {
   return user?.role === "admin";
+}
+
+export function isSubscriber(user: AuthUser | null): boolean {
+  return user?.role === "subscriber";
 }
 
 // ===== Existing: requireAuth (backward compatible) =====

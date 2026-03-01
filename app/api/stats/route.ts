@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { drafts, brands, agents, conversations } from "@/lib/db/schema";
 import { eq, sql, desc, and } from "drizzle-orm";
-import { getAuthUser, isAdmin } from "@/lib/auth";
+import { getAuthUser, isAdmin, isSubscriber } from "@/lib/auth";
 
 export async function GET() {
   try {
@@ -12,19 +12,24 @@ export async function GET() {
     }
 
     const admin = isAdmin(user);
+    const subscriber = isSubscriber(user);
 
-    // Scoped conditions for editors
+    // Scoped conditions for non-admin
     const draftScope = admin
       ? undefined
       : eq(drafts.createdBy, user.userId);
     const convScope = admin
       ? undefined
       : eq(conversations.createdBy, user.userId);
+    const brandScope = subscriber
+      ? eq(brands.createdBy, user.userId)
+      : undefined;
 
     // Total counts
     const [brandCount] = await db
       .select({ count: sql<number>`count(*)::int` })
-      .from(brands);
+      .from(brands)
+      .where(brandScope);
 
     const [agentCount] = await db
       .select({ count: sql<number>`count(*)::int` })

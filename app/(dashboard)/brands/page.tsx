@@ -20,6 +20,7 @@ export default function BrandsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [userRole, setUserRole] = useState<string>("");
 
   const fetchBrands = useCallback(async () => {
     setLoading(true);
@@ -36,6 +37,10 @@ export default function BrandsPage() {
 
   useEffect(() => {
     fetchBrands();
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => setUserRole(d.role || ""))
+      .catch(() => {});
   }, [fetchBrands]);
 
   // Client-side filter
@@ -58,17 +63,27 @@ export default function BrandsPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-white">🏷️ 品牌管理</h1>
-          <p className="text-gray-500 text-sm mt-1">管理所有品牌客戶的資料</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {userRole === "subscriber"
+              ? `我的品牌（${brands.length} / 2）`
+              : "管理所有品牌客戶的資料"}
+          </p>
         </div>
-        <Link
-          href="/brands/new"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          新增品牌
-        </Link>
+        {userRole === "subscriber" && brands.length >= 2 ? (
+          <span className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 text-gray-400 text-sm font-medium rounded-xl cursor-not-allowed">
+            已達上限 2 個品牌
+          </span>
+        ) : (
+          <Link
+            href="/brands/new"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            新增品牌
+          </Link>
+        )}
       </div>
 
       {/* Filters */}
