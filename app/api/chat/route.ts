@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { brands, agents, conversations } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { brands, agents, conversations, userCredits, creditUsage, creditTransactions } from "@/lib/db/schema";
+import { eq, sql } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { getAuthUser, isSubscriber } from "@/lib/auth";
+import { getCreditsForAgent, getCreditsForFollowup } from "@/lib/plans";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -57,6 +58,43 @@ export async function POST(request: NextRequest) {
         .where(eq(agents.id, agentId))
         .limit(1);
       agentData = agent;
+    }
+
+    // ===== Subscriber credit check =====
+    let creditCost = 0;
+    let contentType = "social_post";
+
+    if (isSubscriber(user)) {
+      // Determine cost
+      if (conversationId) {
+        // Follow-up in existing conversation
+        const result = getCreditsForFollowup();
+        creditCost = result.credits;
+        contentType = result.contentType;
+      } else if (agentData) {
+        const result = getCreditsForAgent(agentData.agentCode, agentData.category);
+        creditCost = result.credits;
+        contentType = result.contentType;
+      } else {
+        creditCost = 1;
+        contentType = "social_post";
+      }
+
+      // Check balance
+      const [credits] = await db
+        .select()
+        .from(userCredits)
+        .where(eq(userCredits.userId, user.userId))
+        .limit(1);
+
+      if (!credits || credits.balance < creditCost) {
+        return new Response(
+          JSON.stringify({
+            error: `點數不足：需要 ${creditCost} 點，目前剩餘 ${credits?.balance || 0} 點`,
+          }),
+          { status: 403, headers: { "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Build system prompt
@@ -125,15 +163,62 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ===== Deduct credits for subscriber =====
+    if (isSubscriber(user) && creditCost > 0) {
+      try {
+        // Atomic decrement
+        await db
+          .update(userCredits)
+          .set({
+            balance: sql`${userCredits.balance} - ${creditCost}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(userCredits.userId, user.userId));
+
+        // Get new balance
+        const [newCredits] = await db
+          .select({ balance: userCredits.balance })
+          .from(userCredits)
+          .where(eq(userCredits.userId, user.userId))
+          .limit(1);
+
+        // Log usage
+        await db.insert(creditUsage).values({
+          userId: user.userId,
+          agentId: agentId || null,
+          brandId: brandId || null,
+          conversationId: activeConversationId || null,
+          creditsUsed: creditCost,
+          contentType,
+          description: `${agentData?.name || "AI 助手"} — ${contentType}`,
+        });
+
+        // Log transaction
+        await db.insert(creditTransactions).values({
+          userId: user.userId,
+          type: "usage",
+          amount: -creditCost,
+          balanceAfter: newCredits?.balance || 0,
+          description: `使用 ${agentData?.name || "AI 助手"}（${creditCost} 點）`,
+        });
+      } catch (err) {
+        console.error("Credit deduction error:", err);
+        // Don't block the response, log for manual reconciliation
+      }
+    }
+
     // Return SSE stream
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          // Send conversationId to frontend
-          if (activeConversationId) {
-            const idData = JSON.stringify({ conversationId: activeConversationId });
-            controller.enqueue(encoder.encode(`data: ${idData}\n\n`));
+          // Send conversationId + credit info to frontend
+          const metaData: Record<string, unknown> = {};
+          if (activeConversationId) metaData.conversationId = activeConversationId;
+          if (isSubscriber(user)) metaData.creditsUsed = creditCost;
+
+          if (Object.keys(metaData).length > 0) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(metaData)}\n\n`));
           }
 
           for await (const event of stream) {

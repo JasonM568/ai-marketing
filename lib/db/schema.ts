@@ -8,6 +8,7 @@ export const adminUsers = pgTable("admin_users", {
   passwordHash: varchar("password_hash", { length: 255 }).notNull(),
   name: varchar("name", { length: 100 }),
   role: varchar("role", { length: 20 }).default("admin").notNull(),
+  planId: varchar("plan_id", { length: 20 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -75,8 +76,53 @@ export const drafts = pgTable("drafts", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// ===== 訂閱點數系統 =====
+
+// 用戶點數餘額（每個用戶一筆記錄）
+export const userCredits = pgTable("user_credits", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().unique(),
+  balance: integer("balance").default(0).notNull(),
+  monthlyQuota: integer("monthly_quota").default(0).notNull(),
+  carryOver: integer("carry_over").default(0).notNull(),
+  maxBrands: integer("max_brands").default(1).notNull(),
+  currentPeriodStart: timestamp("current_period_start"),
+  currentPeriodEnd: timestamp("current_period_end"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// 點數使用記錄
+export const creditUsage = pgTable("credit_usage", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull(),
+  agentId: uuid("agent_id"),
+  brandId: uuid("brand_id"),
+  conversationId: uuid("conversation_id"),
+  creditsUsed: integer("credits_used").notNull(),
+  contentType: varchar("content_type", { length: 30 }).notNull(),
+  inputTokens: integer("input_tokens").default(0),
+  outputTokens: integer("output_tokens").default(0),
+  description: varchar("description", { length: 200 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 點數異動記錄（發放、扣除、過期、手動調整）
+export const creditTransactions = pgTable("credit_transactions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull(),
+  type: varchar("type", { length: 20 }).notNull(),
+  amount: integer("amount").notNull(),
+  balanceAfter: integer("balance_after").notNull(),
+  description: varchar("description", { length: 200 }),
+  createdBy: uuid("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Type exports
 export type Brand = typeof brands.$inferSelect;
 export type Agent = typeof agents.$inferSelect;
 export type Conversation = typeof conversations.$inferSelect;
 export type Draft = typeof drafts.$inferSelect;
+export type UserCredit = typeof userCredits.$inferSelect;
+export type CreditUsage = typeof creditUsage.$inferSelect;
+export type CreditTransaction = typeof creditTransactions.$inferSelect;

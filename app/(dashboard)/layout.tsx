@@ -58,12 +58,14 @@ export default function DashboardLayout({
     { href: "/brands", label: "品牌管理", icon: "🏷️", desc: "品牌資料庫" },
     { href: "/agents", label: "AI 代理", icon: "🤖", desc: "代理管理" },
     { href: "/drafts", label: "草稿庫", icon: "📄", desc: "產出記錄" },
+    { href: "/my-plan", label: "我的方案", icon: "💳", desc: "點數與用量", subscriberOnly: true },
     { href: "/users", label: "帳號管理", icon: "👥", desc: "用戶與權限", adminOnly: true },
   ];
 
-  // Subscriber: hide agent management; non-admin: hide user management
+  // Filter nav items by role
   const navItems = allNavItems.filter((item) => {
     if ("adminOnly" in item && item.adminOnly && session?.role !== "admin") return false;
+    if ("subscriberOnly" in item && item.subscriberOnly && session?.role !== "subscriber") return false;
     if (item.href === "/agents" && session?.role === "subscriber") return false;
     return true;
   });

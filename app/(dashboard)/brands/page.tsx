@@ -21,6 +21,7 @@ export default function BrandsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [userRole, setUserRole] = useState<string>("");
+  const [maxBrands, setMaxBrands] = useState(2);
 
   const fetchBrands = useCallback(async () => {
     setLoading(true);
@@ -39,7 +40,18 @@ export default function BrandsPage() {
     fetchBrands();
     fetch("/api/auth/me")
       .then((r) => r.json())
-      .then((d) => setUserRole(d.role || ""))
+      .then((d) => {
+        setUserRole(d.role || "");
+        // Fetch max brands for subscriber
+        if (d.role === "subscriber") {
+          fetch("/api/credits")
+            .then((r) => r.json())
+            .then((c) => {
+              if (c.credits?.maxBrands) setMaxBrands(c.credits.maxBrands);
+            })
+            .catch(() => {});
+        }
+      })
       .catch(() => {});
   }, [fetchBrands]);
 
@@ -65,13 +77,13 @@ export default function BrandsPage() {
           <h1 className="text-2xl font-bold text-white">🏷️ 品牌管理</h1>
           <p className="text-gray-500 text-sm mt-1">
             {userRole === "subscriber"
-              ? `我的品牌（${brands.length} / 2）`
+              ? `我的品牌（${brands.length} / ${maxBrands}）`
               : "管理所有品牌客戶的資料"}
           </p>
         </div>
-        {userRole === "subscriber" && brands.length >= 2 ? (
+        {userRole === "subscriber" && brands.length >= maxBrands ? (
           <span className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 text-gray-400 text-sm font-medium rounded-xl cursor-not-allowed">
-            已達上限 2 個品牌
+            已達上限 {maxBrands} 個品牌
           </span>
         ) : (
           <Link

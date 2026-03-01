@@ -43,16 +43,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Subscriber: check brand limit (max 2)
+    // Subscriber: check brand limit from plan
     if (isSubscriber(user)) {
       const ownBrands = await db
         .select({ id: brands.id })
         .from(brands)
         .where(eq(brands.createdBy, user.userId));
 
-      if (ownBrands.length >= 2) {
+      // Get max brands from credits table
+      const { userCredits } = await import("@/lib/db/schema");
+      const [credits] = await db
+        .select({ maxBrands: userCredits.maxBrands })
+        .from(userCredits)
+        .where(eq(userCredits.userId, user.userId))
+        .limit(1);
+
+      const maxBrands = credits?.maxBrands || 1;
+
+      if (ownBrands.length >= maxBrands) {
         return NextResponse.json(
-          { error: "訂閱會員最多可建立 2 個品牌" },
+          { error: `您的方案最多可建立 ${maxBrands} 個品牌` },
           { status: 403 }
         );
       }

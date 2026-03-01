@@ -1,0 +1,115 @@
+// ===== 訂閱方案定義 =====
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  icon: string;
+  price: number;
+  monthlyCredits: number;
+  maxBrands: number;
+  description: string;
+  features: string[];
+}
+
+export const PLANS: Record<string, SubscriptionPlan> = {
+  basic: {
+    id: "basic",
+    name: "基礎版",
+    icon: "🌱",
+    price: 999,
+    monthlyCredits: 30,
+    maxBrands: 1,
+    description: "適合個人品牌經營",
+    features: [
+      "每月 30 點數",
+      "約可產出 20 篇短文",
+      "管理 1 個品牌",
+      "點數可累積（最多 2 個月）",
+    ],
+  },
+  pro: {
+    id: "pro",
+    name: "進階版",
+    icon: "🚀",
+    price: 1499,
+    monthlyCredits: 80,
+    maxBrands: 2,
+    description: "適合小型企業多平台經營",
+    features: [
+      "每月 80 點數",
+      "約可產出 60 篇短文",
+      "管理 2 個品牌",
+      "點數可累積（最多 2 個月）",
+    ],
+  },
+  business: {
+    id: "business",
+    name: "專業版",
+    icon: "💎",
+    price: 1999,
+    monthlyCredits: 250,
+    maxBrands: 5,
+    description: "適合行銷公司 / 多品牌管理",
+    features: [
+      "每月 250 點數",
+      "約可產出 180 篇短文",
+      "管理 5 個品牌",
+      "點數可累積（最多 2 個月）",
+    ],
+  },
+};
+
+// ===== 內容類型扣點表 =====
+
+export interface ContentCost {
+  type: string;
+  label: string;
+  credits: number;
+  description: string;
+}
+
+export const CONTENT_COSTS: ContentCost[] = [
+  { type: "social_post", label: "社群貼文", credits: 1, description: "IG / FB / Threads / LINE" },
+  { type: "reels_script", label: "短影音腳本", credits: 1, description: "Reels / 短影音" },
+  { type: "ad_copy", label: "廣告文案", credits: 2, description: "Meta / Google 廣告" },
+  { type: "edm", label: "EDM 電子報", credits: 3, description: "歡迎信 / 促銷信 / 再行銷" },
+  { type: "blog_seo", label: "部落格 / SEO", credits: 4, description: "SEO 長文章" },
+  { type: "strategy", label: "策略分析", credits: 5, description: "品牌策略 / 趨勢分析" },
+  { type: "followup", label: "對話追問", credits: 1, description: "微調 / 追問 / 修改" },
+];
+
+// 根據 agent category + code 判斷扣多少點
+export function getCreditsForAgent(agentCode: string, category: string): { credits: number; contentType: string } {
+  // 策略分析組
+  if (category === "strategy") {
+    return { credits: 5, contentType: "strategy" };
+  }
+
+  // 內容產出組 — 根據 agent 類型
+  switch (agentCode) {
+    case "social-writer":
+    case "content-repurposer":
+    case "customer-responder":
+      return { credits: 1, contentType: "social_post" };
+    case "ad-copywriter":
+      return { credits: 2, contentType: "ad_copy" };
+    case "edm-writer":
+      return { credits: 3, contentType: "edm" };
+    case "seo-copywriter":
+      return { credits: 4, contentType: "blog_seo" };
+    case "sales-copywriter":
+      return { credits: 2, contentType: "ad_copy" };
+    default:
+      return { credits: 1, contentType: "social_post" };
+  }
+}
+
+// 追問判斷：如果 conversationId 已存在，代表是追問
+export function getCreditsForFollowup(): { credits: number; contentType: string } {
+  return { credits: 1, contentType: "followup" };
+}
+
+// 點數累積上限：最多存 2 個月的 quota
+export function getMaxCarryOver(monthlyQuota: number): number {
+  return monthlyQuota * 2;
+}
