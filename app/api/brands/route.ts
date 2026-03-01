@@ -81,7 +81,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const { eq } = await import("drizzle-orm");
     const existing = await db
       .select({ id: brands.id })
       .from(brands)
