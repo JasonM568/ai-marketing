@@ -159,6 +159,9 @@ export default function WorkspacePage() {
 
             try {
               const parsed = JSON.parse(data);
+              if (parsed.conversationId) {
+                setConversationId(parsed.conversationId);
+              }
               if (parsed.text) {
                 assistantContent += parsed.text;
                 setMessages((prev) => {
@@ -187,6 +190,9 @@ export default function WorkspacePage() {
       ]);
     } finally {
       setIsStreaming(false);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
     }
   }, [input, isStreaming, selectedBrand, selectedAgent, messages, conversationId]);
 

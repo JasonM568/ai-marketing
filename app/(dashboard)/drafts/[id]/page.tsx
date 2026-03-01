@@ -132,7 +132,16 @@ export default function DraftDetailPage() {
     const content =
       format === "markdown"
         ? `# ${draft.topic || "未命名草稿"}\n\n${draft.content}`
-        : (draft.content || "").replace(/[#*_`~\[\]()>-]/g, "");
+        : (draft.content || "")
+            .replace(/^#{1,6}\s+/gm, "")
+            .replace(/\*\*(.+?)\*\*/g, "$1")
+            .replace(/\*(.+?)\*/g, "$1")
+            .replace(/~~(.+?)~~/g, "$1")
+            .replace(/`(.+?)`/g, "$1")
+            .replace(/^\s*[-*+]\s+/gm, "• ")
+            .replace(/^\s*\d+\.\s+/gm, "")
+            .replace(/\[(.+?)\]\(.+?\)/g, "$1")
+            .replace(/^>\s+/gm, "");
 
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);

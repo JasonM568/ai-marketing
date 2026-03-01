@@ -170,7 +170,11 @@ function AgentCard({ agent }: { agent: Agent }) {
   return (
     <Link href={`/agents/${agent.id}`}>
       <div
-        className={`bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-${accentColor}-600/50 transition-all cursor-pointer group`}
+        className={`bg-gray-900 border border-gray-800 rounded-xl p-5 transition-all cursor-pointer group ${
+          isContent
+            ? "hover:border-blue-600/50"
+            : "hover:border-purple-600/50"
+        }`}
       >
         {/* Icon + Name */}
         <div className="flex items-start gap-3 mb-3">

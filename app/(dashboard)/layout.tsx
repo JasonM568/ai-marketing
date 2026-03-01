@@ -72,7 +72,7 @@ export default function DashboardLayout({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <span className="font-bold text-sm">🤖 AI Marketing Agent(v1.0)</span>
+        <span className="font-bold text-sm">🤖 AI Marketing Agent(v1.2)</span>
         <div className="w-6" />
       </div>
 
@@ -95,7 +95,7 @@ export default function DashboardLayout({
             <span className="text-2xl">🤖</span>
             <div>
               <p className="font-bold text-white text-sm">AI Marketing Agent</p>
-              <p className="text-[10px] text-gray-500">惠邦行銷 · 內容產出系統 v1.0</p>
+              <p className="text-[10px] text-gray-500">惠邦行銷 · 內容產出系統 v1.2</p>
             </div>
           </Link>
         </div>

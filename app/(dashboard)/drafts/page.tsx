@@ -38,11 +38,28 @@ export default function DraftsPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [totalCounts, setTotalCounts] = useState({ all: 0, draft: 0, reviewed: 0, published: 0 });
 
   useEffect(() => {
     fetch("/api/brands", { credentials: "include" })
       .then((r) => r.json())
       .then((d) => setBrands(d.brands || d || []))
+      .catch(console.error);
+  }, []);
+
+  // Fetch total counts (unaffected by filters)
+  useEffect(() => {
+    fetch("/api/drafts", { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => {
+        const all = Array.isArray(data) ? data : [];
+        setTotalCounts({
+          all: all.length,
+          draft: all.filter((d: any) => d.status === "draft").length,
+          reviewed: all.filter((d: any) => d.status === "reviewed").length,
+          published: all.filter((d: any) => d.status === "published").length,
+        });
+      })
       .catch(console.error);
   }, []);
 
@@ -112,7 +129,16 @@ export default function DraftsPage() {
     const content =
       format === "markdown"
         ? `# ${draft.topic || "未命名草稿"}\n\n${draft.content}`
-        : (draft.content || "").replace(/[#*_`~\[\]()>-]/g, "");
+        : (draft.content || "")
+            .replace(/^#{1,6}\s+/gm, "")
+            .replace(/\*\*(.+?)\*\*/g, "$1")
+            .replace(/\*(.+?)\*/g, "$1")
+            .replace(/~~(.+?)~~/g, "$1")
+            .replace(/`(.+?)`/g, "$1")
+            .replace(/^\s*[-*+]\s+/gm, "• ")
+            .replace(/^\s*\d+\.\s+/gm, "")
+            .replace(/\[(.+?)\]\(.+?\)/g, "$1")
+            .replace(/^>\s+/gm, "");
 
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -123,12 +149,7 @@ export default function DraftsPage() {
     URL.revokeObjectURL(url);
   }
 
-  const counts = {
-    all: drafts.length,
-    draft: drafts.filter((d) => d.status === "draft").length,
-    reviewed: drafts.filter((d) => d.status === "reviewed").length,
-    published: drafts.filter((d) => d.status === "published").length,
-  };
+  const counts = totalCounts;
 
   return (
     <div className="space-y-6">

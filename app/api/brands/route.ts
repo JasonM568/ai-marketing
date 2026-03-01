@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { brands } from "@/lib/db/schema";
 import { desc } from "drizzle-orm";
-import { getAuthUser, isAdmin } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 
 // GET /api/brands — everyone can view
 export async function GET() {

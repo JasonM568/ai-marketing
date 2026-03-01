@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser();
     if (!user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      return new Response(JSON.stringify({ error: "請先登入" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
       });
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     const { brandId, agentId, conversationId, messages } = body;
 
     if (!messages || messages.length === 0) {
-      return new Response(JSON.stringify({ error: "Messages required" }), {
+      return new Response(JSON.stringify({ error: "請輸入訊息" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       });
@@ -94,23 +94,27 @@ export async function POST(request: NextRequest) {
       })),
     });
 
-    // Save conversation with createdBy
+    // Save or update conversation
+    let activeConversationId = conversationId;
     if (!conversationId) {
       const userMessage = messages[messages.length - 1]?.content || "";
       const title =
         userMessage.slice(0, 50) + (userMessage.length > 50 ? "..." : "");
-      db.insert(conversations)
-        .values({
-          brandId: brandId || null,
-          agentId: agentId || null,
-          createdBy: user.userId,
-          title,
-          messages: messages,
-          status: "active",
-        })
-        .returning()
-        .then(() => {})
-        .catch(console.error);
+      try {
+        const [newConv] = await db.insert(conversations)
+          .values({
+            brandId: brandId || null,
+            agentId: agentId || null,
+            createdBy: user.userId,
+            title,
+            messages: messages,
+            status: "active",
+          })
+          .returning();
+        activeConversationId = newConv.id;
+      } catch (err) {
+        console.error("Save conversation error:", err);
+      }
     }
 
     // Return SSE stream
@@ -118,6 +122,12 @@ export async function POST(request: NextRequest) {
     const readable = new ReadableStream({
       async start(controller) {
         try {
+          // Send conversationId to frontend
+          if (activeConversationId) {
+            const idData = JSON.stringify({ conversationId: activeConversationId });
+            controller.enqueue(encoder.encode(`data: ${idData}\n\n`));
+          }
+
           for await (const event of stream) {
             if (
               event.type === "content_block_delta" &&
@@ -145,7 +155,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Chat error:", error);
-    return new Response(JSON.stringify({ error: "Chat failed" }), {
+    return new Response(JSON.stringify({ error: "對話發生錯誤，請稍後再試" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
