@@ -79,10 +79,10 @@ export const CONTENT_COSTS: ContentCost[] = [
 ];
 
 // 根據 agent category + code 判斷扣多少點
-export function getCreditsForAgent(agentCode: string, category: string): { credits: number; contentType: string } {
+export function getCreditsForAgent(agentCode: string, category: string): { credits: number; contentType: string; tokenAllowance: number } {
   // 策略分析組
   if (category === "strategy") {
-    return { credits: 5, contentType: "strategy" };
+    return { credits: 5, contentType: "strategy", tokenAllowance: 12000 };
   }
 
   // 內容產出組 — 根據 agent 類型
@@ -90,23 +90,30 @@ export function getCreditsForAgent(agentCode: string, category: string): { credi
     case "social-writer":
     case "content-repurposer":
     case "customer-responder":
-      return { credits: 1, contentType: "social_post" };
+      return { credits: 1, contentType: "social_post", tokenAllowance: 3000 };
     case "ad-copywriter":
-      return { credits: 2, contentType: "ad_copy" };
+      return { credits: 2, contentType: "ad_copy", tokenAllowance: 5000 };
     case "edm-writer":
-      return { credits: 3, contentType: "edm" };
+      return { credits: 3, contentType: "edm", tokenAllowance: 8000 };
     case "seo-copywriter":
-      return { credits: 4, contentType: "blog_seo" };
+      return { credits: 4, contentType: "blog_seo", tokenAllowance: 10000 };
     case "sales-copywriter":
-      return { credits: 2, contentType: "ad_copy" };
+      return { credits: 2, contentType: "ad_copy", tokenAllowance: 5000 };
     default:
-      return { credits: 1, contentType: "social_post" };
+      return { credits: 1, contentType: "social_post", tokenAllowance: 3000 };
   }
 }
 
 // 追問判斷：如果 conversationId 已存在，代表是追問
-export function getCreditsForFollowup(): { credits: number; contentType: string } {
-  return { credits: 1, contentType: "followup" };
+export function getCreditsForFollowup(): { credits: number; contentType: string; tokenAllowance: number } {
+  return { credits: 1, contentType: "followup", tokenAllowance: 3000 };
+}
+
+// 計算超量扣點：每超過 1,000 tokens 扣 1 點
+export function calculateOverageCost(totalTokens: number, tokenAllowance: number): number {
+  if (totalTokens <= tokenAllowance) return 0;
+  const overage = totalTokens - tokenAllowance;
+  return Math.ceil(overage / 1000);
 }
 
 // 點數累積上限：最多存 2 個月的 quota

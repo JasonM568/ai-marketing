@@ -162,6 +162,21 @@ export default function WorkspacePage() {
               if (parsed.conversationId) {
                 setConversationId(parsed.conversationId);
               }
+              if (parsed.creditSummary) {
+                const cs = parsed.creditSummary;
+                const summaryText = cs.overageCost > 0
+                  ? `\n\n---\n💳 本次扣點：基礎 ${cs.baseCost} + 超量 ${cs.overageCost} = **${cs.totalCost} 點**（${cs.totalTokens.toLocaleString()} tokens，額度 ${cs.tokenAllowance.toLocaleString()}）｜剩餘 ${cs.remainingBalance} 點`
+                  : `\n\n---\n💳 本次扣點：**${cs.totalCost} 點**（${cs.totalTokens.toLocaleString()} tokens）｜剩餘 ${cs.remainingBalance} 點`;
+                assistantContent += summaryText;
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = {
+                    role: "assistant",
+                    content: assistantContent,
+                  };
+                  return updated;
+                });
+              }
               if (parsed.text) {
                 assistantContent += parsed.text;
                 setMessages((prev) => {
