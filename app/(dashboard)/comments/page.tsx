@@ -623,9 +623,15 @@ export default function CommentsPage() {
                                   handleReplyAction(comment.replySuggestion!.id, "approve")
                                 }
                                 disabled={actionLoading === comment.replySuggestion.id}
-                                className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-xs font-medium transition-colors"
+                                className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                                  actionLoading === comment.replySuggestion.id
+                                    ? "bg-green-800 text-green-300 animate-pulse"
+                                    : "bg-green-600 hover:bg-green-700"
+                                }`}
                               >
-                                ✅ 核准發送
+                                {actionLoading === comment.replySuggestion.id
+                                  ? "⏳ 發送中..."
+                                  : "✅ 核准發送"}
                               </button>
                               <button
                                 onClick={() => {
@@ -635,7 +641,8 @@ export default function CommentsPage() {
                                       comment.replySuggestion!.suggestedText
                                   );
                                 }}
-                                className="px-3 py-1 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 rounded text-xs transition-colors"
+                                disabled={actionLoading === comment.replySuggestion.id}
+                                className="px-3 py-1 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 rounded text-xs transition-colors disabled:opacity-40"
                               >
                                 ✏️ 編輯
                               </button>
@@ -644,7 +651,7 @@ export default function CommentsPage() {
                                   handleReplyAction(comment.replySuggestion!.id, "reject")
                                 }
                                 disabled={actionLoading === comment.replySuggestion.id}
-                                className="px-3 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded text-xs transition-colors"
+                                className="px-3 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded text-xs transition-colors disabled:opacity-40"
                               >
                                 ❌ 略過
                               </button>
