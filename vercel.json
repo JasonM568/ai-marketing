@@ -1,7 +1,7 @@
 {
   "framework": "nextjs",
   "crons": [
-    { "path": "/api/cron/post", "schedule": "0 */1 * * *" },
+    { "path": "/api/cron/post", "schedule": "0 0 * * *" },
     { "path": "/api/cron/token-refresh", "schedule": "0 18 * * *" }
   ]
 }
