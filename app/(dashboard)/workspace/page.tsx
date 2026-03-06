@@ -45,8 +45,11 @@ export default function WorkspacePage() {
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [savingDraft, setSavingDraft] = useState<number | null>(null);
   const [copied, setCopied] = useState<number | null>(null);
+  const [csvData, setCsvData] = useState<string | null>(null);
+  const [csvFileName, setCsvFileName] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch("/api/brands", { credentials: "include" }).then((r) => r.json()).then((d) => setBrands(d.brands || d)).catch(console.error);
@@ -107,10 +110,18 @@ export default function WorkspacePage() {
   const sendMessage = useCallback(async () => {
     if (!input.trim() || isStreaming || !selectedBrand || !selectedAgent) return;
 
-    const userMessage: Message = { role: "user", content: input.trim() };
+    // Build message content - prepend CSV data if attached
+    let content = input.trim();
+    if (csvData) {
+      content = `[上傳的 CSV 資料：${csvFileName}]\n\`\`\`csv\n${csvData}\n\`\`\`\n\n${content}`;
+    }
+
+    const userMessage: Message = { role: "user", content };
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
     setInput("");
+    setCsvData(null);
+    setCsvFileName(null);
     setIsStreaming(true);
 
     // Auto-resize textarea back
@@ -209,7 +220,7 @@ export default function WorkspacePage() {
         textareaRef.current.style.height = "auto";
       }
     }
-  }, [input, isStreaming, selectedBrand, selectedAgent, messages, conversationId]);
+  }, [input, isStreaming, selectedBrand, selectedAgent, messages, conversationId, csvData, csvFileName]);
 
   async function copyContent(index: number) {
     const msg = messages[index];
@@ -255,6 +266,38 @@ export default function WorkspacePage() {
     setInput(e.target.value);
     e.target.style.height = "auto";
     e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px";
+  }
+
+  function handleCsvUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      alert("僅支援 CSV 檔案");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert("檔案大小不可超過 5MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      if (!text) return;
+      // Parse CSV: take header + up to 200 rows, truncate to 8000 chars
+      const lines = text.split("\n").filter((l) => l.trim());
+      const preview = lines.slice(0, 201).join("\n");
+      const truncated = preview.length > 8000 ? preview.substring(0, 8000) + "\n...(已截斷)" : preview;
+      setCsvData(truncated);
+      setCsvFileName(file.name);
+    };
+    reader.readAsText(file);
+    // Reset input so same file can be re-uploaded
+    e.target.value = "";
+  }
+
+  function removeCsv() {
+    setCsvData(null);
+    setCsvFileName(null);
   }
 
   const contentAgents = agents.filter((a) => a.category === "content");
@@ -496,7 +539,41 @@ export default function WorkspacePage() {
 
             {/* Input Area */}
             <div className="flex-shrink-0 px-1 pb-3 pt-2 border-t border-gray-800">
+              {/* CSV attachment preview */}
+              {csvFileName && (
+                <div className="flex items-center gap-2 mb-2 px-2 py-1.5 bg-purple-900/30 border border-purple-700/50 rounded-lg text-sm">
+                  <span className="text-purple-400">📊</span>
+                  <span className="text-purple-300 truncate flex-1">{csvFileName}</span>
+                  <button
+                    onClick={removeCsv}
+                    className="text-gray-400 hover:text-red-400 transition-colors text-xs"
+                    title="移除附件"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
               <div className="flex gap-2 items-end">
+                {/* CSV upload button - only for strategy agents */}
+                {selectedAgent?.category === "strategy" && (
+                  <>
+                    <input
+                      ref={csvInputRef}
+                      type="file"
+                      accept=".csv"
+                      onChange={handleCsvUpload}
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => csvInputRef.current?.click()}
+                      disabled={isStreaming}
+                      className="px-3 py-3 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-400 hover:text-purple-400 rounded-xl transition-colors flex-shrink-0 border border-gray-700"
+                      title="上傳 CSV 數據"
+                    >
+                      📊
+                    </button>
+                  </>
+                )}
                 <textarea
                   ref={textareaRef}
                   value={input}
@@ -521,7 +598,7 @@ export default function WorkspacePage() {
                 </button>
               </div>
               <p className="text-xs text-gray-600 mt-1.5 ml-1">
-                Enter 送出，Shift+Enter 換行
+                Enter 送出，Shift+Enter 換行{selectedAgent?.category === "strategy" && "　｜　📊 可上傳 CSV 數據供分析"}
               </p>
             </div>
           </div>
