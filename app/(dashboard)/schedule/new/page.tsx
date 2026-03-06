@@ -50,8 +50,10 @@ export default function NewSchedulePage() {
   const [selectedBrand, setSelectedBrand] = useState("");
   const [content, setContent] = useState("");
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
-  const [selectedAccount, setSelectedAccount] = useState("");
-  const [selectedPlatform, setSelectedPlatform] = useState("");
+  // Multi-platform selection
+  const [selectedAccounts, setSelectedAccounts] = useState<
+    { accountId: string; platform: string; username: string }[]
+  >([]);
   const [scheduledAt, setScheduledAt] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -106,9 +108,41 @@ export default function NewSchedulePage() {
     setSelectedDraftId(draft.id);
   }
 
-  function selectAccount(account: SocialAccount) {
-    setSelectedAccount(account.id);
-    setSelectedPlatform(account.platform);
+  // Toggle account selection (multi-select)
+  function toggleAccount(account: SocialAccount) {
+    setSelectedAccounts((prev) => {
+      const exists = prev.find((a) => a.accountId === account.id);
+      if (exists) {
+        return prev.filter((a) => a.accountId !== account.id);
+      }
+      return [
+        ...prev,
+        {
+          accountId: account.id,
+          platform: account.platform,
+          username: account.platformUsername || "已連結",
+        },
+      ];
+    });
+  }
+
+  // Select all accounts
+  function selectAllAccounts() {
+    if (selectedAccounts.length === accounts.length) {
+      setSelectedAccounts([]);
+    } else {
+      setSelectedAccounts(
+        accounts.map((a) => ({
+          accountId: a.id,
+          platform: a.platform,
+          username: a.platformUsername || "已連結",
+        }))
+      );
+    }
+  }
+
+  function isAccountSelected(accountId: string) {
+    return selectedAccounts.some((a) => a.accountId === accountId);
   }
 
   function getPlatformIcon(platform: string) {
@@ -175,7 +209,7 @@ export default function NewSchedulePage() {
       case 2:
         return content.trim().length > 0;
       case 3:
-        return !!selectedAccount;
+        return selectedAccounts.length > 0;
       case 4:
         return !!scheduledAt && new Date(scheduledAt) > new Date();
       default:
@@ -187,37 +221,69 @@ export default function NewSchedulePage() {
     setError("");
     setSaving(true);
     try {
-      // Convert local datetime to proper ISO string with timezone
-      // datetime-local gives "2026-03-07T04:00", new Date() in browser uses local TZ
       const scheduledDate = new Date(scheduledAt);
+      const results: { platform: string; success: boolean; error?: string }[] = [];
 
-      const res = await fetch("/api/schedule", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          brandId: selectedBrand,
-          socialAccountId: selectedAccount,
-          platform: selectedPlatform,
-          content,
-          imageUrl: imageUrl || null,
-          scheduledAt: scheduledDate.toISOString(), // Send UTC ISO string
-          draftId: selectedDraftId,
-        }),
-      });
+      // Create one schedule per selected platform
+      for (const acc of selectedAccounts) {
+        try {
+          const res = await fetch("/api/schedule", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              brandId: selectedBrand,
+              socialAccountId: acc.accountId,
+              platform: acc.platform,
+              content,
+              imageUrl: imageUrl || null,
+              scheduledAt: scheduledDate.toISOString(),
+              draftId: selectedDraftId,
+            }),
+          });
 
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "建立排程失敗");
-        return;
+          if (!res.ok) {
+            const data = await res.json();
+            results.push({ platform: acc.platform, success: false, error: data.error });
+          } else {
+            results.push({ platform: acc.platform, success: true });
+          }
+        } catch {
+          results.push({ platform: acc.platform, success: false, error: "請求失敗" });
+        }
       }
 
-      router.push("/schedule?success=scheduled");
+      const failed = results.filter((r) => !r.success);
+      if (failed.length > 0 && failed.length === results.length) {
+        setError(`所有平台排程失敗：${failed.map((f) => `${f.platform}(${f.error})`).join("、")}`);
+        return;
+      }
+      if (failed.length > 0) {
+        // Partial success
+        router.push(
+          `/schedule?success=partial&failed=${failed.map((f) => f.platform).join(",")}`
+        );
+      } else {
+        router.push("/schedule?success=scheduled");
+      }
     } catch {
       setError("建立排程失敗，請重試");
     } finally {
       setSaving(false);
     }
+  }
+
+  // Format datetime for display
+  function formatDatetime(dt: string) {
+    if (!dt) return "-";
+    return new Date(dt).toLocaleString("zh-TW", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }
 
   // Minimum datetime (now + 1 minute) in local time format for datetime-local input
@@ -457,12 +523,24 @@ export default function NewSchedulePage() {
             </div>
           )}
 
-          {/* Step 3: Select Platform/Account */}
+          {/* Step 3: Select Platform/Account (Multi-select) */}
           {step === 3 && (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-3">
-                選擇發布平台 <span className="text-red-400">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-medium text-gray-300">
+                  選擇發布平台 <span className="text-red-400">*</span>
+                  <span className="text-gray-600 font-normal ml-2">（可多選）</span>
+                </label>
+                {accounts.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={selectAllAccounts}
+                    className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    {selectedAccounts.length === accounts.length ? "取消全選" : "全部選取"}
+                  </button>
+                )}
+              </div>
               {loadingAccounts ? (
                 <p className="text-sm text-gray-500">載入帳號中...</p>
               ) : accounts.length === 0 ? (
@@ -479,13 +557,23 @@ export default function NewSchedulePage() {
                     <button
                       key={account.id}
                       type="button"
-                      onClick={() => selectAccount(account)}
+                      onClick={() => toggleAccount(account)}
                       className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
-                        selectedAccount === account.id
+                        isAccountSelected(account.id)
                           ? "bg-blue-600/10 border-blue-500/30 text-white"
                           : "bg-gray-950 border-gray-800 text-gray-400 hover:bg-gray-800"
                       }`}
                     >
+                      {/* Checkbox indicator */}
+                      <span
+                        className={`w-5 h-5 rounded flex items-center justify-center text-xs border transition-colors ${
+                          isAccountSelected(account.id)
+                            ? "bg-blue-600 border-blue-500 text-white"
+                            : "bg-gray-900 border-gray-700"
+                        }`}
+                      >
+                        {isAccountSelected(account.id) && "✓"}
+                      </span>
                       <span className="text-2xl">{getPlatformIcon(account.platform)}</span>
                       <div>
                         <div className="font-medium text-sm">
@@ -498,6 +586,11 @@ export default function NewSchedulePage() {
                     </button>
                   ))}
                 </div>
+              )}
+              {selectedAccounts.length > 0 && (
+                <p className="text-xs text-blue-400 mt-3">
+                  已選擇 {selectedAccounts.length} 個平台，將同時建立 {selectedAccounts.length} 筆排程
+                </p>
               )}
             </div>
           )}
@@ -554,43 +647,18 @@ export default function NewSchedulePage() {
                 </div>
               </div>
 
-              {/* Custom date/time */}
+              {/* Custom datetime picker */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   或自訂日期時間
                 </label>
-                <div className="flex gap-2">
-                  <input
-                    type="date"
-                    value={scheduledAt ? scheduledAt.split("T")[0] : ""}
-                    onChange={(e) => {
-                      const time = scheduledAt ? scheduledAt.split("T")[1] || "09:00" : "09:00";
-                      setScheduledAt(`${e.target.value}T${time}`);
-                    }}
-                    min={new Date().toISOString().split("T")[0]}
-                    className="flex-1 px-4 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors text-sm"
-                  />
-                  <select
-                    value={scheduledAt ? scheduledAt.split("T")[1]?.slice(0, 5) || "09:00" : "09:00"}
-                    onChange={(e) => {
-                      const date = scheduledAt ? scheduledAt.split("T")[0] : new Date().toISOString().split("T")[0];
-                      setScheduledAt(`${date}T${e.target.value}`);
-                    }}
-                    className="w-28 px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors text-sm"
-                  >
-                    {Array.from({ length: 48 }, (_, i) => {
-                      const h = Math.floor(i / 2);
-                      const m = i % 2 === 0 ? "00" : "30";
-                      const val = `${h.toString().padStart(2, "0")}:${m}`;
-                      const label = `${h.toString().padStart(2, "0")}:${m}`;
-                      return (
-                        <option key={val} value={val}>
-                          {label}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
+                <input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                  min={minDatetime}
+                  className="w-full px-4 py-3 bg-gray-950 border border-gray-800 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors text-sm [color-scheme:dark]"
+                />
               </div>
 
               {/* Selected time preview */}
@@ -605,16 +673,13 @@ export default function NewSchedulePage() {
                   ) : (
                     <span>
                       📅 將在{" "}
-                      <strong>
-                        {new Date(scheduledAt).toLocaleString("zh-TW", {
-                          month: "long",
-                          day: "numeric",
-                          weekday: "short",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </strong>
+                      <strong>{formatDatetime(scheduledAt)}</strong>
                       {" "}自動發布
+                      {selectedAccounts.length > 1 && (
+                        <span className="text-blue-400/70">
+                          {" "}（{selectedAccounts.length} 個平台同步發布）
+                        </span>
+                      )}
                     </span>
                   )}
                 </div>
@@ -634,30 +699,23 @@ export default function NewSchedulePage() {
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">平台</span>
-                  <span className="text-white">
-                    {getPlatformIcon(selectedPlatform)} {selectedPlatform.toUpperCase()}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">帳號</span>
-                  <span className="text-white">
-                    {accounts.find((a) => a.id === selectedAccount)?.platformUsername || "-"}
-                  </span>
+                  <span className="text-gray-500">發布平台</span>
+                  <div className="text-right">
+                    {selectedAccounts.map((acc) => (
+                      <div key={acc.accountId} className="text-white">
+                        {getPlatformIcon(acc.platform)} {acc.platform.toUpperCase()}
+                        <span className="text-gray-600 text-xs ml-1">({acc.username})</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">排程時間</span>
-                  <span className="text-white">
-                    {scheduledAt
-                      ? new Date(scheduledAt).toLocaleString("zh-TW", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "-"}
-                  </span>
+                  <span className="text-white">{formatDatetime(scheduledAt)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">排程數量</span>
+                  <span className="text-blue-400">{selectedAccounts.length} 筆排程</span>
                 </div>
                 {imageUrl && (
                   <div className="space-y-2">
@@ -711,7 +769,9 @@ export default function NewSchedulePage() {
                 disabled={saving}
                 className="px-5 py-2.5 bg-green-600 hover:bg-green-500 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
               >
-                {saving ? "排程中..." : "✅ 確認排程發布"}
+                {saving
+                  ? "排程中..."
+                  : `✅ 確認排程發布（${selectedAccounts.length} 個平台）`}
               </button>
             )}
 
