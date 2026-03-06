@@ -111,36 +111,8 @@ export async function GET(request: NextRequest) {
         });
     }
 
-    // Try to get Threads account
-    const threadsAccount = await getThreadsUserId(longToken);
-    if (threadsAccount) {
-      await db
-        .insert(socialAccounts)
-        .values({
-          brandId,
-          platform: "threads",
-          platformUserId: threadsAccount.threadsId,
-          platformUsername: threadsAccount.threadsUsername,
-          pageId: page.id,
-          accessToken: encrypt(longToken),
-          tokenExpiresAt,
-          scopes: "threads_basic,threads_content_publish",
-          metaUserId: userId,
-          connectedBy: userId,
-          status: "active",
-        })
-        .onConflictDoUpdate({
-          target: [socialAccounts.brandId, socialAccounts.platform],
-          set: {
-            platformUserId: threadsAccount.threadsId,
-            platformUsername: threadsAccount.threadsUsername,
-            accessToken: encrypt(longToken),
-            tokenExpiresAt,
-            status: "active",
-            updatedAt: new Date(),
-          },
-        });
-    }
+    // Note: Threads uses a separate OAuth flow (threads.net/oauth/authorize)
+    // Threads integration will be added in a future version
 
     return NextResponse.redirect(new URL(`/brands/${brandId}/social?success=connected`, request.url));
   } catch (error) {
