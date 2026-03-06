@@ -49,6 +49,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ url: blob.url });
   } catch (error) {
     console.error("Upload error:", error);
-    return NextResponse.json({ error: "上傳失敗" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "上傳失敗";
+    // Check if BLOB token is missing
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return NextResponse.json(
+        { error: "Blob Storage 尚未設定，請確認 BLOB_READ_WRITE_TOKEN 環境變數" },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json({ error: `上傳失敗：${message}` }, { status: 500 });
   }
 }
