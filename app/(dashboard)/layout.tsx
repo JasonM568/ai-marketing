@@ -65,9 +65,10 @@ export default function DashboardLayout({
     { href: "/users", label: "帳號管理", icon: "👥", desc: "用戶與權限", adminOnly: true },
   ];
 
-  // Filter nav items by role
+  // Filter nav items by role — admin sees everything
   const navItems = allNavItems.filter((item) => {
-    if ("adminOnly" in item && item.adminOnly && session?.role !== "admin") return false;
+    if (session?.role === "admin") return true;
+    if ("adminOnly" in item && item.adminOnly) return false;
     if ("subscriberOnly" in item && item.subscriberOnly && session?.role !== "subscriber") return false;
     if (item.href === "/agents" && session?.role === "subscriber") return false;
     return true;
