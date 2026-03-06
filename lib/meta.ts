@@ -232,6 +232,9 @@ export async function postToThreads(
   content: string,
   imageUrl?: string
 ): Promise<string> {
+  // Threads uses graph.threads.net, NOT graph.facebook.com
+  const THREADS_API = "https://graph.threads.net/v1.0";
+
   // Step 1: Create threads media container
   const containerBody: Record<string, string> = {
     text: content,
@@ -242,7 +245,7 @@ export async function postToThreads(
     containerBody.image_url = imageUrl;
   }
 
-  const containerRes = await fetch(`${META_GRAPH_API}/${threadsUserId}/threads`, {
+  const containerRes = await fetch(`${THREADS_API}/${threadsUserId}/threads`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(containerBody),
@@ -255,7 +258,7 @@ export async function postToThreads(
   const container = await containerRes.json();
 
   // Step 2: Publish
-  const publishRes = await fetch(`${META_GRAPH_API}/${threadsUserId}/threads_publish`, {
+  const publishRes = await fetch(`${THREADS_API}/${threadsUserId}/threads_publish`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
