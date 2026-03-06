@@ -303,21 +303,68 @@ export default function CommentSettingsPage() {
         <div className="bg-gray-900 rounded-xl border border-blue-500/30 p-6 space-y-4">
           <h3 className="font-semibold">新增監控</h3>
 
-          {/* Account selector */}
+          {/* Account selector — grouped by platform */}
           <div>
-            <label className="text-xs text-gray-500 block mb-1">社群帳號</label>
-            <select
-              value={formAccount}
-              onChange={(e) => setFormAccount(e.target.value)}
-              className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm"
-            >
-              <option value="">請選擇...</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {platformLabel(a.platform)} - @{a.platformUsername}
-                </option>
-              ))}
-            </select>
+            <label className="text-xs text-gray-500 block mb-2">社群帳號</label>
+            {(() => {
+              const platformOrder = ["facebook", "instagram", "threads"];
+              const grouped = platformOrder
+                .map((p) => ({
+                  platform: p,
+                  accounts: accounts.filter((a) => a.platform === p),
+                }))
+                .filter((g) => g.accounts.length > 0);
+
+              if (grouped.length === 0) {
+                return <p className="text-xs text-gray-600">此品牌尚未連結社群帳號</p>;
+              }
+
+              const platformIcon: Record<string, string> = {
+                facebook: "👤",
+                instagram: "📸",
+                threads: "🧵",
+              };
+
+              return (
+                <div className="space-y-2">
+                  {grouped.map((g) => (
+                    <div key={g.platform}>
+                      <p className="text-[11px] text-gray-600 mb-1">
+                        {platformIcon[g.platform] || "📱"} {platformLabel(g.platform)}
+                      </p>
+                      <div className="grid grid-cols-1 gap-1.5">
+                        {g.accounts.map((a) => (
+                          <button
+                            key={a.id}
+                            type="button"
+                            onClick={() => {
+                              setFormAccount(a.id);
+                              setFormPostId(""); // reset post when account changes
+                            }}
+                            className={`flex items-center gap-2 p-2.5 rounded-lg border text-left text-sm transition-all ${
+                              formAccount === a.id
+                                ? "bg-blue-600/10 border-blue-500/30 text-white"
+                                : "bg-gray-800 border-white/10 text-gray-400 hover:bg-gray-700"
+                            }`}
+                          >
+                            <span
+                              className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] border ${
+                                formAccount === a.id
+                                  ? "bg-blue-600 border-blue-500 text-white"
+                                  : "bg-gray-900 border-gray-600"
+                              }`}
+                            >
+                              {formAccount === a.id && "✓"}
+                            </span>
+                            <span>@{a.platformUsername || "已連結"}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Monitor mode */}
@@ -366,26 +413,41 @@ export default function CommentSettingsPage() {
             </div>
           </div>
 
-          {/* Post selector (specific mode) */}
+          {/* Post selector (specific mode) — filtered by selected account's platform */}
           {formMode === "specific" && (
             <div>
               <label className="text-xs text-gray-500 block mb-1">選擇已發布貼文</label>
-              {publishedPosts.length === 0 ? (
-                <p className="text-xs text-gray-600">此品牌尚無已發布排程貼文</p>
-              ) : (
-                <select
-                  value={formPostId}
-                  onChange={(e) => setFormPostId(e.target.value)}
-                  className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="">請選擇...</option>
-                  {publishedPosts.map((p) => (
-                    <option key={p.publishedPostId} value={p.publishedPostId || ""}>
-                      [{platformLabel(p.platform)}] {p.content.slice(0, 60)}...
-                    </option>
-                  ))}
-                </select>
-              )}
+              {(() => {
+                const selectedAccount = accounts.find((a) => a.id === formAccount);
+                const filteredPosts = selectedAccount
+                  ? publishedPosts.filter((p) => p.platform === selectedAccount.platform)
+                  : publishedPosts;
+
+                if (!formAccount) {
+                  return <p className="text-xs text-gray-600">請先選擇社群帳號</p>;
+                }
+                if (filteredPosts.length === 0) {
+                  return (
+                    <p className="text-xs text-gray-600">
+                      此帳號（{platformLabel(selectedAccount?.platform || "")}）尚無已發布貼文
+                    </p>
+                  );
+                }
+                return (
+                  <select
+                    value={formPostId}
+                    onChange={(e) => setFormPostId(e.target.value)}
+                    className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <option value="">請選擇...</option>
+                    {filteredPosts.map((p) => (
+                      <option key={p.publishedPostId} value={p.publishedPostId || ""}>
+                        {p.content.slice(0, 60)}...
+                      </option>
+                    ))}
+                  </select>
+                );
+              })()}
             </div>
           )}
 
