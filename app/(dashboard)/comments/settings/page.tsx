@@ -220,18 +220,21 @@ export default function CommentSettingsPage() {
         </Link>
       </div>
 
-      {/* Brand selector */}
-      <div className="bg-gray-900 rounded-xl border border-white/10 p-4">
-        <label className="text-xs text-gray-500 block mb-2">選擇品牌</label>
-        <select
-          value={selectedBrand}
-          onChange={(e) => setSelectedBrand(e.target.value)}
-          className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm"
-        >
-          {brands.map((b) => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
-        </select>
+      {/* Brand selector — clickable cards */}
+      <div className="flex flex-wrap gap-2">
+        {brands.map((b) => (
+          <button
+            key={b.id}
+            onClick={() => setSelectedBrand(b.id)}
+            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              selectedBrand === b.id
+                ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+                : "bg-gray-900 border border-white/10 text-gray-400 hover:bg-gray-800 hover:text-white"
+            }`}
+          >
+            {b.name}
+          </button>
+        ))}
       </div>
 
       {/* Monitor list */}
