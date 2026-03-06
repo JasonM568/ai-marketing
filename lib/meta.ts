@@ -233,22 +233,23 @@ export async function postToThreads(
   imageUrl?: string
 ): Promise<string> {
   // Threads uses graph.threads.net, NOT graph.facebook.com
+  // Threads API requires form-encoded params (not JSON body) for access_token
   const THREADS_API = "https://graph.threads.net/v1.0";
 
   // Step 1: Create threads media container
-  const containerBody: Record<string, string> = {
+  const containerParams = new URLSearchParams({
     text: content,
     media_type: imageUrl ? "IMAGE" : "TEXT",
     access_token: token,
-  };
+  });
   if (imageUrl) {
-    containerBody.image_url = imageUrl;
+    containerParams.set("image_url", imageUrl);
   }
 
   const containerRes = await fetch(`${THREADS_API}/${threadsUserId}/threads`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(containerBody),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: containerParams.toString(),
   });
 
   if (!containerRes.ok) {
@@ -258,13 +259,15 @@ export async function postToThreads(
   const container = await containerRes.json();
 
   // Step 2: Publish
+  const publishParams = new URLSearchParams({
+    creation_id: container.id,
+    access_token: token,
+  });
+
   const publishRes = await fetch(`${THREADS_API}/${threadsUserId}/threads_publish`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      creation_id: container.id,
-      access_token: token,
-    }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: publishParams.toString(),
   });
 
   if (!publishRes.ok) {

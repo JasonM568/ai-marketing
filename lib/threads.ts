@@ -119,15 +119,18 @@ export async function replyToThreadsComment(
   token: string
 ): Promise<string> {
   // Step 1: Create reply container
+  // Threads API requires form-encoded params (not JSON body) for access_token
+  const containerParams = new URLSearchParams({
+    media_type: "TEXT",
+    text,
+    reply_to_id: replyToId,
+    access_token: token,
+  });
+
   const containerRes = await fetch(`${THREADS_GRAPH_API}/me/threads`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      media_type: "TEXT",
-      text,
-      reply_to_id: replyToId,
-      access_token: token,
-    }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: containerParams.toString(),
   });
 
   if (!containerRes.ok) {
@@ -137,13 +140,15 @@ export async function replyToThreadsComment(
   const container = await containerRes.json();
 
   // Step 2: Publish the reply
+  const publishParams = new URLSearchParams({
+    creation_id: container.id,
+    access_token: token,
+  });
+
   const publishRes = await fetch(`${THREADS_GRAPH_API}/me/threads_publish`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      creation_id: container.id,
-      access_token: token,
-    }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: publishParams.toString(),
   });
 
   if (!publishRes.ok) {
