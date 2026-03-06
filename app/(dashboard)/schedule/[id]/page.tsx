@@ -127,6 +127,34 @@ export default function ScheduleDetailPage() {
     }
   }
 
+  async function publishNow() {
+    if (!post || !confirm("確定要立即發布此貼文嗎？")) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/schedule/${post.id}/publish`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (res.ok && data.post) {
+        setPost(data.post);
+      } else if (data.post) {
+        // Failed but got updated post with error info
+        setPost(data.post);
+      } else {
+        alert(data.error || "發布失敗");
+        // Refresh to get latest status
+        fetchPost(post.id);
+      }
+    } catch (err) {
+      console.error("Publish error:", err);
+      alert("發布失敗，請稍後再試");
+      fetchPost(post.id);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   function getPlatformIcon(platform: string) {
     return platformIcons[platform.toLowerCase()] || "📱";
   }
@@ -194,6 +222,15 @@ export default function ScheduleDetailPage() {
                 系統會在排程時間自動發布到 {post.platform.toUpperCase()}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {post.status === "posting" && (
+        <div className="bg-yellow-900/20 border border-yellow-800/30 rounded-xl px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="w-5 h-5 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin" />
+            <div className="text-yellow-300 font-medium">正在發布到 {post.platform.toUpperCase()}...</div>
           </div>
         </div>
       )}
@@ -282,18 +319,27 @@ export default function ScheduleDetailPage() {
 
       {/* Actions */}
       <div className="flex flex-wrap gap-3">
-        {/* Queued: allow cancel */}
+        {/* Queued: publish now + cancel */}
         {post.status === "queued" && (
-          <button
-            onClick={cancelSchedule}
-            disabled={actionLoading}
-            className="px-5 py-2.5 bg-red-900/20 hover:bg-red-900/30 text-red-400 text-sm rounded-xl transition-colors disabled:opacity-50"
-          >
-            {actionLoading ? "處理中..." : "取消排程"}
-          </button>
+          <>
+            <button
+              onClick={publishNow}
+              disabled={actionLoading}
+              className="px-5 py-2.5 bg-green-600 hover:bg-green-500 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+            >
+              {actionLoading ? "發布中..." : "🚀 立即發布"}
+            </button>
+            <button
+              onClick={cancelSchedule}
+              disabled={actionLoading}
+              className="px-5 py-2.5 bg-red-900/20 hover:bg-red-900/30 text-red-400 text-sm rounded-xl transition-colors disabled:opacity-50"
+            >
+              取消排程
+            </button>
+          </>
         )}
 
-        {/* Pending (legacy): allow confirm + cancel */}
+        {/* Pending (legacy): publish now + confirm + cancel */}
         {post.status === "pending" && (
           <>
             <button
@@ -329,14 +375,14 @@ export default function ScheduleDetailPage() {
           </>
         )}
 
-        {/* Failed: allow retry */}
+        {/* Failed: publish now (retry) */}
         {post.status === "failed" && (
           <button
-            onClick={retrySchedule}
+            onClick={publishNow}
             disabled={actionLoading}
-            className="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-500 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+            className="px-5 py-2.5 bg-green-600 hover:bg-green-500 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
           >
-            {actionLoading ? "處理中..." : "🔄 重試發布"}
+            {actionLoading ? "發布中..." : "🚀 重新發布"}
           </button>
         )}
 
