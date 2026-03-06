@@ -110,7 +110,9 @@ export default function CommentSettingsPage() {
     try {
       const res = await fetch(`/api/social/accounts?brandId=${selectedBrand}`);
       const data = await res.json();
-      setAccounts((data.accounts || []).filter((a: SocialAccount) => a.status === "active"));
+      // API returns array directly, not { accounts: [...] }
+      const list = Array.isArray(data) ? data : data.accounts || [];
+      setAccounts(list.filter((a: SocialAccount) => a.status === "active"));
     } catch {
       console.error("Failed to fetch accounts");
     }
@@ -120,9 +122,9 @@ export default function CommentSettingsPage() {
     try {
       const res = await fetch(`/api/schedule?brandId=${selectedBrand}&status=published`);
       const data = await res.json();
-      setPublishedPosts(
-        (data.posts || []).filter((p: ScheduledPost) => p.publishedPostId)
-      );
+      // API returns array directly, not { posts: [...] }
+      const list = Array.isArray(data) ? data : data.posts || [];
+      setPublishedPosts(list.filter((p: ScheduledPost) => p.publishedPostId));
     } catch {
       console.error("Failed to fetch posts");
     }
