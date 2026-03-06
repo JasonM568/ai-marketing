@@ -15,6 +15,7 @@ const TABS = [
   { id: "pastHits", label: "高成效參考", icon: "🔥", desc: "過去表現良好的內容參考" },
   { id: "brandStory", label: "品牌故事", icon: "📖", desc: "品牌起源與核心理念" },
   { id: "files", label: "參考資料", icon: "📎", desc: "上傳品牌參考文件供 AI 使用" },
+  { id: "social", label: "社群帳號", icon: "🔗", desc: "連結 Meta 平台帳號" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -370,7 +371,18 @@ export default function BrandDetailPage() {
         </div>
 
         <div className="p-5">
-          {activeTab === "files" ? (
+          {activeTab === "social" ? (
+            <div className="text-center py-8">
+              <p className="text-4xl mb-3">🔗</p>
+              <p className="text-gray-400 mb-4">管理此品牌的社群帳號連結（Facebook、Instagram、Threads）</p>
+              <a
+                href={`/brands/${brandId}/social`}
+                className="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-colors font-medium"
+              >
+                前往社群帳號管理 →
+              </a>
+            </div>
+          ) : activeTab === "files" ? (
             <div>
               {/* Upload Area */}
               <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:border-blue-500/30 hover:bg-blue-600/5 transition-all">
