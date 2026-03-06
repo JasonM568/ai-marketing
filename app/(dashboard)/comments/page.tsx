@@ -414,52 +414,56 @@ export default function CommentsPage() {
       {activeMonitors > 0 && (
         <>
           {/* Monitor info bar + Sync */}
-          <div className="bg-gray-900 rounded-xl border border-white/10 p-4 space-y-3">
+          <div className="bg-gray-900 rounded-xl border border-white/10 p-4 space-y-4">
+            {/* Row 1: Monitor status + sync button */}
             <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-500">
-                  監控中：{activeMonitors} 個
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-sm font-medium text-gray-200">
+                  📡 監控中：{activeMonitors} 個
+                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
                   {monitors.filter((m) => m.status === "active").map((m) => (
-                    <span key={m.id} className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] ${platformColor(m.platform)}`}>
+                    <span key={m.id} className={`px-2.5 py-1 rounded-md text-xs font-medium ${platformColor(m.platform)}`}>
                       {platformIcon(m.platform)} {platformLabel(m.platform)}
-                      {m.monitorMode === "all" ? "（全部貼文）" : ""}
+                      {m.monitorMode === "all" ? " · 全部貼文" : ""}
                     </span>
                   ))}
-                </span>
-                <Link href="/comments/settings" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
-                  管理 →
+                </div>
+                <Link
+                  href="/comments/settings"
+                  className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  ⚙️ 管理監控
                 </Link>
               </div>
 
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleSyncComments}
-                  disabled={syncing}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
-                >
-                  {syncing ? (
-                    <>
-                      <span className="animate-spin">⏳</span> 同步中...
-                    </>
-                  ) : (
-                    "🔄 同步留言"
-                  )}
-                </button>
-              </div>
+              <button
+                onClick={handleSyncComments}
+                disabled={syncing}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+              >
+                {syncing ? (
+                  <>
+                    <span className="animate-spin">⏳</span> 同步中...
+                  </>
+                ) : (
+                  "🔄 同步留言"
+                )}
+              </button>
             </div>
 
-            {/* Auto-sync status bar */}
-            <div className="flex items-center justify-between text-[11px] text-gray-600 border-t border-white/5 pt-2">
+            {/* Row 2: Auto-sync status */}
+            <div className="flex items-center justify-between text-xs text-gray-500 border-t border-white/5 pt-3">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setAutoSync(!autoSync)}
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors ${
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors ${
                     autoSync
                       ? "bg-green-900/30 text-green-400 hover:bg-green-900/50"
                       : "bg-gray-800 text-gray-500 hover:bg-gray-700"
                   }`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${autoSync ? "bg-green-400 animate-pulse" : "bg-gray-600"}`} />
+                  <span className={`w-2 h-2 rounded-full ${autoSync ? "bg-green-400 animate-pulse" : "bg-gray-600"}`} />
                   {autoSync ? "自動同步 ON" : "自動同步 OFF"}
                 </button>
                 {autoSync && (
