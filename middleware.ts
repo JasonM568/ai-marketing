@@ -11,10 +11,14 @@ export async function middleware(request: NextRequest) {
   // Public routes
   if (
     pathname === "/login" ||
+    pathname === "/privacy" ||
+    pathname === "/terms" ||
+    pathname === "/data-deletion" ||
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/api/social/meta/callback") ||
+    pathname.startsWith("/api/social/meta/data-deletion") ||
     pathname.startsWith("/api/cron/") ||
     pathname.startsWith("/api/subscription/callback") ||
     pathname.startsWith("/api/subscription/return") ||
