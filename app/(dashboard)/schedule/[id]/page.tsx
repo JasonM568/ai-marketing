@@ -30,14 +30,25 @@ const platformIcons: Record<string, string> = {
   threads: "🧵",
 };
 
-const statusConfig: Record<string, { label: string; color: string }> = {
-  pending: { label: "待確認", color: "bg-gray-700/50 text-gray-300" },
-  queued: { label: "排程中", color: "bg-blue-900/50 text-blue-400" },
-  posting: { label: "發布中", color: "bg-yellow-900/50 text-yellow-400" },
-  published: { label: "已發布", color: "bg-green-900/50 text-green-400" },
-  failed: { label: "失敗", color: "bg-red-900/50 text-red-400" },
-  cancelled: { label: "已取消", color: "bg-gray-700/50 text-gray-500 line-through" },
+const statusConfig: Record<string, { label: string; color: string; icon: string }> = {
+  pending: { label: "待確認", color: "bg-gray-700/50 text-gray-300", icon: "⏸" },
+  queued: { label: "排程中", color: "bg-blue-900/50 text-blue-400", icon: "📅" },
+  posting: { label: "發布中", color: "bg-yellow-900/50 text-yellow-400", icon: "⏳" },
+  published: { label: "已發布", color: "bg-green-900/50 text-green-400", icon: "✅" },
+  failed: { label: "失敗", color: "bg-red-900/50 text-red-400", icon: "❌" },
+  cancelled: { label: "已取消", color: "bg-gray-700/50 text-gray-500", icon: "🚫" },
 };
+
+function getCountdown(scheduledAt: string): string {
+  const diff = new Date(scheduledAt).getTime() - Date.now();
+  if (diff <= 0) return "即將發布";
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  if (days > 0) return `${days} 天 ${hours} 小時後發布`;
+  if (hours > 0) return `${hours} 小時 ${minutes} 分鐘後發布`;
+  return `${minutes} 分鐘後發布`;
+}
 
 export default function ScheduleDetailPage() {
   const params = useParams();
@@ -45,10 +56,21 @@ export default function ScheduleDetailPage() {
   const [post, setPost] = useState<ScheduledPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [countdown, setCountdown] = useState("");
 
   useEffect(() => {
     if (params.id) fetchPost(params.id as string);
   }, [params.id]);
+
+  // Live countdown timer
+  useEffect(() => {
+    if (!post || post.status !== "queued") return;
+    setCountdown(getCountdown(post.scheduledAt));
+    const interval = setInterval(() => {
+      setCountdown(getCountdown(post.scheduledAt));
+    }, 30000); // update every 30s
+    return () => clearInterval(interval);
+  }, [post]);
 
   async function fetchPost(id: string) {
     try {
@@ -66,29 +88,8 @@ export default function ScheduleDetailPage() {
     }
   }
 
-  async function confirmSchedule() {
-    if (!post) return;
-    setActionLoading(true);
-    try {
-      const res = await fetch(`/api/schedule/${post.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ status: "queued" }),
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setPost(updated);
-      }
-    } catch (err) {
-      console.error("Confirm error:", err);
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
   async function cancelSchedule() {
-    if (!post || !confirm("確定要取消此排程嗎？")) return;
+    if (!post || !confirm("確定要取消此排程嗎？取消後貼文不會被發布。")) return;
     setActionLoading(true);
     try {
       const res = await fetch(`/api/schedule/${post.id}`, {
@@ -109,7 +110,6 @@ export default function ScheduleDetailPage() {
     if (!post) return;
     setActionLoading(true);
     try {
-      // Reset status back to queued for retry
       const res = await fetch(`/api/schedule/${post.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -154,7 +154,7 @@ export default function ScheduleDetailPage() {
         <span className="text-gray-300">排程詳情</span>
       </nav>
 
-      {/* Header */}
+      {/* Header card */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
@@ -165,7 +165,7 @@ export default function ScheduleDetailPage() {
                   {post.platform.toUpperCase()}
                 </span>
                 <span className={`px-2 py-0.5 text-xs rounded-full ${status.color}`}>
-                  {status.label}
+                  {status.icon} {status.label}
                 </span>
               </div>
               <div className="text-sm text-gray-500 mt-1">
@@ -185,27 +185,59 @@ export default function ScheduleDetailPage() {
 
       {/* Status-specific messages */}
       {post.status === "queued" && (
-        <div className="bg-blue-900/20 border border-blue-800/30 rounded-xl px-4 py-3 text-sm text-blue-400">
-          等待發布... 系統將在排程時間自動發布此貼文。
+        <div className="bg-blue-900/20 border border-blue-800/30 rounded-xl px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">⏰</span>
+            <div>
+              <div className="text-blue-300 font-medium">{countdown}</div>
+              <div className="text-sm text-blue-400/70 mt-0.5">
+                系統會在排程時間自動發布到 {post.platform.toUpperCase()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {post.status === "pending" && (
+        <div className="bg-yellow-900/20 border border-yellow-800/30 rounded-xl px-5 py-4 text-sm text-yellow-400">
+          此排程尚未確認。請點擊下方「確認排程」按鈕啟動排程。
         </div>
       )}
 
       {post.status === "published" && post.publishedPostId && (
-        <div className="bg-green-900/20 border border-green-800/30 rounded-xl px-4 py-3 text-sm text-green-400">
-          已成功發布！貼文 ID：
-          <span className="font-mono text-green-300 ml-1">{post.publishedPostId}</span>
+        <div className="bg-green-900/20 border border-green-800/30 rounded-xl px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎉</span>
+            <div>
+              <div className="text-green-300 font-medium">已成功發布！</div>
+              <div className="text-sm text-green-400/70 mt-0.5">
+                貼文 ID：<span className="font-mono">{post.publishedPostId}</span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
       {post.status === "failed" && (
-        <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3 text-sm text-red-400">
-          <div className="font-medium mb-1">發布失敗</div>
-          <div className="text-red-400/80">
-            {post.publishError || "未知錯誤"}
+        <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">⚠️</span>
+            <div>
+              <div className="text-red-300 font-medium">發布失敗</div>
+              <div className="text-sm text-red-400/80 mt-1">
+                {post.publishError || "未知錯誤"}
+              </div>
+              <div className="text-xs text-red-400/50 mt-1">
+                已重試 {post.retryCount} 次（上限 3 次）
+              </div>
+            </div>
           </div>
-          <div className="text-red-400/60 text-xs mt-1">
-            已重試 {post.retryCount} 次
-          </div>
+        </div>
+      )}
+
+      {post.status === "cancelled" && (
+        <div className="bg-gray-800/50 border border-gray-700/30 rounded-xl px-5 py-4 text-sm text-gray-500">
+          此排程已取消，貼文不會被發布。
         </div>
       )}
 
@@ -250,10 +282,38 @@ export default function ScheduleDetailPage() {
 
       {/* Actions */}
       <div className="flex flex-wrap gap-3">
+        {/* Queued: allow cancel */}
+        {post.status === "queued" && (
+          <button
+            onClick={cancelSchedule}
+            disabled={actionLoading}
+            className="px-5 py-2.5 bg-red-900/20 hover:bg-red-900/30 text-red-400 text-sm rounded-xl transition-colors disabled:opacity-50"
+          >
+            {actionLoading ? "處理中..." : "取消排程"}
+          </button>
+        )}
+
+        {/* Pending (legacy): allow confirm + cancel */}
         {post.status === "pending" && (
           <>
             <button
-              onClick={confirmSchedule}
+              onClick={async () => {
+                setActionLoading(true);
+                try {
+                  const res = await fetch(`/api/schedule/${post.id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ status: "queued" }),
+                  });
+                  if (res.ok) {
+                    const updated = await res.json();
+                    setPost(updated);
+                  }
+                } finally {
+                  setActionLoading(false);
+                }
+              }}
               disabled={actionLoading}
               className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
             >
@@ -269,13 +329,14 @@ export default function ScheduleDetailPage() {
           </>
         )}
 
+        {/* Failed: allow retry */}
         {post.status === "failed" && (
           <button
             onClick={retrySchedule}
             disabled={actionLoading}
             className="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-500 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
           >
-            {actionLoading ? "處理中..." : "重試"}
+            {actionLoading ? "處理中..." : "🔄 重試發布"}
           </button>
         )}
 

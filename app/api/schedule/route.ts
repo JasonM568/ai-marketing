@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "排程時間必須在未來" }, { status: 400 });
     }
 
+    // Create with status "queued" directly — user already confirmed in the 5-step form
     const [post] = await db
       .insert(scheduledPosts)
       .values({
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest) {
         content,
         imageUrl: imageUrl || null,
         scheduledAt: new Date(scheduledAt),
-        status: "pending",
+        status: "queued",
         createdBy: user.userId,
       })
       .returning();

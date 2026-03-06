@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 interface ScheduledPost {
@@ -39,11 +40,14 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 };
 
 export default function SchedulePage() {
+  const searchParams = useSearchParams();
   const [posts, setPosts] = useState<ScheduledPost[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterBrand, setFilterBrand] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+
+  const success = searchParams.get("success");
 
   useEffect(() => {
     fetch("/api/brands", { credentials: "include" })
@@ -99,6 +103,13 @@ export default function SchedulePage() {
           建立排程
         </Link>
       </div>
+
+      {/* Success message */}
+      {success === "scheduled" && (
+        <div className="px-4 py-3 bg-green-900/30 border border-green-700/50 rounded-xl text-green-300 text-sm">
+          ✅ 排程建立成功！系統會在排程時間自動發布貼文。
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">

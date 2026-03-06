@@ -45,9 +45,9 @@ export async function PUT(
       return NextResponse.json({ error: "排程不存在" }, { status: 404 });
     }
 
-    // Only allow updates if pending
-    if (existing.status !== "pending") {
-      return NextResponse.json({ error: "只能修改待確認的排程" }, { status: 400 });
+    // Only allow updates if pending or failed
+    if (existing.status !== "pending" && existing.status !== "failed") {
+      return NextResponse.json({ error: "只能修改待確認或失敗的排程" }, { status: 400 });
     }
 
     const updates: Record<string, any> = { updatedAt: new Date() };
@@ -56,9 +56,14 @@ export async function PUT(
     if (body.scheduledAt) updates.scheduledAt = new Date(body.scheduledAt);
     if (body.imageUrl !== undefined) updates.imageUrl = body.imageUrl;
 
-    // Allow confirming (pending → queued)
+    // Allow confirming (pending → queued) or retrying (failed → queued)
     if (body.status === "queued") {
       updates.status = "queued";
+      // Reset retry count on manual retry
+      if (existing.status === "failed") {
+        updates.retryCount = 0;
+        updates.publishError = null;
+      }
     }
 
     const [updated] = await db

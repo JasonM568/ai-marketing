@@ -130,6 +130,10 @@ export default function NewSchedulePage() {
     setError("");
     setSaving(true);
     try {
+      // Convert local datetime to proper ISO string with timezone
+      // datetime-local gives "2026-03-07T04:00", new Date() in browser uses local TZ
+      const scheduledDate = new Date(scheduledAt);
+
       const res = await fetch("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -140,7 +144,7 @@ export default function NewSchedulePage() {
           platform: selectedPlatform,
           content,
           imageUrl: imageUrl || null,
-          scheduledAt,
+          scheduledAt: scheduledDate.toISOString(), // Send UTC ISO string
           draftId: selectedDraftId,
         }),
       });
@@ -151,7 +155,7 @@ export default function NewSchedulePage() {
         return;
       }
 
-      router.push("/schedule");
+      router.push("/schedule?success=scheduled");
     } catch {
       setError("建立排程失敗，請重試");
     } finally {
@@ -159,8 +163,13 @@ export default function NewSchedulePage() {
     }
   }
 
-  // Minimum datetime (now + 1 minute)
-  const minDatetime = new Date(Date.now() + 60000).toISOString().slice(0, 16);
+  // Minimum datetime (now + 1 minute) in local time format for datetime-local input
+  function getMinDatetime() {
+    const d = new Date(Date.now() + 60000);
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  const minDatetime = getMinDatetime();
 
   return (
     <div className="max-w-2xl">
@@ -369,7 +378,7 @@ export default function NewSchedulePage() {
           {step === 4 && (
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                排程時間 <span className="text-red-400">*</span>
+                排程時間（台灣時間 UTC+8） <span className="text-red-400">*</span>
               </label>
               <input
                 type="datetime-local"
@@ -378,7 +387,9 @@ export default function NewSchedulePage() {
                 min={minDatetime}
                 className="w-full px-4 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors text-sm"
               />
-              <p className="text-[11px] text-gray-600 mt-1">排程時間必須在未來</p>
+              <p className="text-[11px] text-gray-600 mt-1">
+                🕐 時間以您的瀏覽器時區為準（{Intl.DateTimeFormat().resolvedOptions().timeZone}）
+              </p>
               {scheduledAt && new Date(scheduledAt) <= new Date() && (
                 <p className="text-xs text-red-400 mt-1">請選擇未來的時間</p>
               )}
@@ -465,9 +476,9 @@ export default function NewSchedulePage() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={saving}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+                className="px-5 py-2.5 bg-green-600 hover:bg-green-500 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
               >
-                {saving ? "建立中..." : "建立排程"}
+                {saving ? "排程中..." : "✅ 確認排程發布"}
               </button>
             )}
 
