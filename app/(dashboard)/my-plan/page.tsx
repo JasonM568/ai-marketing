@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 
 interface CreditData {
   credits: {
@@ -82,7 +83,13 @@ export default function MyPlanPage() {
       <div className="text-center py-16">
         <p className="text-4xl mb-3">📦</p>
         <p className="text-gray-400">尚未指派方案</p>
-        <p className="text-gray-500 text-sm mt-1">請聯繫管理員開通訂閱方案</p>
+        <p className="text-gray-500 text-sm mt-1">請聯繫管理員開通訂閱方案，或自行訂閱</p>
+        <a
+          href="/pricing"
+          className="inline-block mt-4 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-medium transition-colors"
+        >
+          前往訂閱 →
+        </a>
       </div>
     );
   }
@@ -214,6 +221,25 @@ export default function MyPlanPage() {
               <p className="text-gray-500 text-[10px]">{c.desc}</p>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Subscription Management */}
+      <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
+        <h3 className="text-white font-medium mb-4">🔧 訂閱管理</h3>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/pricing"
+            className="px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-sm transition-colors"
+          >
+            變更方案
+          </Link>
+          <Link
+            href="/billing"
+            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-sm transition-colors"
+          >
+            帳單紀錄
+          </Link>
         </div>
       </div>
 

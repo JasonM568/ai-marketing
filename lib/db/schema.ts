@@ -132,6 +132,81 @@ export const creditTransactions = pgTable("credit_transactions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ===== 社群帳號 + 排程發文 =====
+
+export const socialAccounts = pgTable("social_accounts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  brandId: uuid("brand_id").notNull(),
+  platform: varchar("platform", { length: 20 }).notNull(),
+  platformUserId: varchar("platform_user_id", { length: 100 }),
+  platformUsername: varchar("platform_username", { length: 100 }),
+  pageId: varchar("page_id", { length: 100 }),
+  accessToken: text("access_token").notNull(),
+  tokenExpiresAt: timestamp("token_expires_at"),
+  scopes: text("scopes"),
+  metaUserId: varchar("meta_user_id", { length: 100 }),
+  connectedBy: uuid("connected_by"),
+  status: varchar("status", { length: 20 }).default("active").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const scheduledPosts = pgTable("scheduled_posts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  draftId: uuid("draft_id"),
+  brandId: uuid("brand_id").notNull(),
+  socialAccountId: uuid("social_account_id").notNull(),
+  platform: varchar("platform", { length: 20 }).notNull(),
+  content: text("content").notNull(),
+  imageUrl: text("image_url"),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  publishedPostId: varchar("published_post_id", { length: 200 }),
+  publishError: text("publish_error"),
+  retryCount: integer("retry_count").default(0),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ===== 訂閱金流 =====
+
+export const subscriptions = pgTable("subscriptions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull(),
+  planId: varchar("plan_id", { length: 20 }).notNull(),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  ecpayMerchantTradeNo: varchar("ecpay_merchant_trade_no", { length: 50 }),
+  ecpayPeriodType: varchar("ecpay_period_type", { length: 10 }),
+  ecpayFrequency: integer("ecpay_frequency").default(1),
+  ecpayExecTimes: integer("ecpay_exec_times").default(99),
+  ecpayCardLast4: varchar("ecpay_card_last4", { length: 4 }),
+  currentPeriodStart: timestamp("current_period_start"),
+  currentPeriodEnd: timestamp("current_period_end"),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false),
+  cancelledAt: timestamp("cancelled_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const paymentRecords = pgTable("payment_records", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  subscriptionId: uuid("subscription_id"),
+  userId: uuid("user_id").notNull(),
+  ecpayMerchantTradeNo: varchar("ecpay_merchant_trade_no", { length: 50 }),
+  ecpayTradeNo: varchar("ecpay_trade_no", { length: 50 }),
+  planId: varchar("plan_id", { length: 20 }).notNull(),
+  amount: integer("amount").notNull(),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  paymentType: varchar("payment_type", { length: 20 }),
+  ecpayRtnCode: varchar("ecpay_rtn_code", { length: 10 }),
+  ecpayRtnMsg: varchar("ecpay_rtn_msg", { length: 200 }),
+  ecpayPaymentDate: timestamp("ecpay_payment_date"),
+  rawCallback: jsonb("raw_callback"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Type exports
 export type Brand = typeof brands.$inferSelect;
 export type Agent = typeof agents.$inferSelect;
@@ -141,3 +216,7 @@ export type UserCredit = typeof userCredits.$inferSelect;
 export type CreditUsage = typeof creditUsage.$inferSelect;
 export type CreditTransaction = typeof creditTransactions.$inferSelect;
 export type BrandFile = typeof brandFiles.$inferSelect;
+export type SocialAccount = typeof socialAccounts.$inferSelect;
+export type ScheduledPost = typeof scheduledPosts.$inferSelect;
+export type Subscription = typeof subscriptions.$inferSelect;
+export type PaymentRecord = typeof paymentRecords.$inferSelect;

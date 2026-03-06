@@ -126,80 +126,19 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "assign_plan") {
-      // Assign subscription plan to user
       const plan = PLANS[planId];
       if (!plan) {
         return NextResponse.json({ error: "無效的方案" }, { status: 400 });
       }
 
-      // Update user's plan
-      await db
-        .update(adminUsers)
-        .set({ planId, role: "subscriber" })
-        .where(eq(adminUsers.id, userId));
+      const { assignPlanCredits } = await import("@/lib/credits");
+      const result = await assignPlanCredits({
+        userId,
+        planId,
+        assignedBy: user.userId,
+      });
 
-      // Create or update credits
-      const now = new Date();
-      const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
-
-      const [existing] = await db
-        .select()
-        .from(userCredits)
-        .where(eq(userCredits.userId, userId))
-        .limit(1);
-
-      if (existing) {
-        // Calculate carry over (max 2 months)
-        const maxCarry = plan.monthlyCredits * 2;
-        const newCarryOver = Math.min(existing.balance, maxCarry);
-        const newBalance = newCarryOver + plan.monthlyCredits;
-
-        await db
-          .update(userCredits)
-          .set({
-            balance: newBalance,
-            monthlyQuota: plan.monthlyCredits,
-            carryOver: newCarryOver,
-            maxBrands: plan.maxBrands,
-            currentPeriodStart: now,
-            currentPeriodEnd: periodEnd,
-            updatedAt: now,
-          })
-          .where(eq(userCredits.userId, userId));
-
-        // Log transaction
-        await db.insert(creditTransactions).values({
-          userId,
-          type: "plan_assign",
-          amount: plan.monthlyCredits,
-          balanceAfter: newBalance,
-          description: `指派方案：${plan.name}（${plan.monthlyCredits} 點/月）`,
-          createdBy: user.userId,
-        });
-      } else {
-        // First time
-        const newBalance = plan.monthlyCredits;
-        await db.insert(userCredits).values({
-          userId,
-          balance: newBalance,
-          monthlyQuota: plan.monthlyCredits,
-          carryOver: 0,
-          maxBrands: plan.maxBrands,
-          currentPeriodStart: now,
-          currentPeriodEnd: periodEnd,
-        });
-
-        await db.insert(creditTransactions).values({
-          userId,
-          type: "plan_assign",
-          amount: plan.monthlyCredits,
-          balanceAfter: newBalance,
-          description: `首次指派方案：${plan.name}（${plan.monthlyCredits} 點）`,
-          createdBy: user.userId,
-        });
-      }
-
-      return NextResponse.json({ success: true, message: `已指派 ${plan.name} 方案` });
+      return NextResponse.json({ success: true, message: `已指派 ${plan.name} 方案`, balance: result.balance });
 
     } else if (action === "adjust") {
       // Manual credit adjustment

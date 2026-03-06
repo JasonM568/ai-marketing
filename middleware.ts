@@ -13,7 +13,12 @@ export async function middleware(request: NextRequest) {
     pathname === "/login" ||
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon")
+    pathname.startsWith("/favicon") ||
+    pathname.startsWith("/api/social/meta/callback") ||
+    pathname.startsWith("/api/cron/") ||
+    pathname.startsWith("/api/subscription/callback") ||
+    pathname.startsWith("/api/subscription/return") ||
+    pathname.startsWith("/api/subscription/period-notify")
   ) {
     return NextResponse.next();
   }

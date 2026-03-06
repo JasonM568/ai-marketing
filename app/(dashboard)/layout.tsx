@@ -58,7 +58,10 @@ export default function DashboardLayout({
     { href: "/brands", label: "品牌管理", icon: "🏷️", desc: "品牌資料庫" },
     { href: "/agents", label: "AI 代理", icon: "🤖", desc: "代理管理" },
     { href: "/drafts", label: "草稿庫", icon: "📄", desc: "產出記錄" },
+    { href: "/schedule", label: "排程發布", icon: "📅", desc: "排程管理" },
+    { href: "/pricing", label: "方案價格", icon: "💰", desc: "訂閱方案" },
     { href: "/my-plan", label: "我的方案", icon: "💳", desc: "點數與用量", subscriberOnly: true },
+    { href: "/billing", label: "帳單紀錄", icon: "🧾", desc: "付款記錄", subscriberOnly: true },
     { href: "/users", label: "帳號管理", icon: "👥", desc: "用戶與權限", adminOnly: true },
   ];
 
@@ -82,7 +85,7 @@ export default function DashboardLayout({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <span className="font-bold text-sm">🤖 AI Marketing Agent(v1.5)</span>
+        <span className="font-bold text-sm">🤖 AI Marketing Agent(v1.7)</span>
         <div className="w-6" />
       </div>
 
@@ -105,7 +108,7 @@ export default function DashboardLayout({
             <span className="text-2xl">🤖</span>
             <div>
               <p className="font-bold text-white text-sm">AI Marketing Agent</p>
-              <p className="text-[10px] text-gray-500">惠邦行銷 · 內容產出系統 v1.5</p>
+              <p className="text-[10px] text-gray-500">惠邦行銷 · 內容產出系統 v1.7</p>
             </div>
           </Link>
         </div>
