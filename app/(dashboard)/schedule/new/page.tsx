@@ -376,22 +376,120 @@ export default function NewSchedulePage() {
 
           {/* Step 4: Schedule Time */}
           {step === 4 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                排程時間（台灣時間 UTC+8） <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="datetime-local"
-                value={scheduledAt}
-                onChange={(e) => setScheduledAt(e.target.value)}
-                min={minDatetime}
-                className="w-full px-4 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors text-sm"
-              />
-              <p className="text-[11px] text-gray-600 mt-1">
-                🕐 時間以您的瀏覽器時區為準（{Intl.DateTimeFormat().resolvedOptions().timeZone}）
-              </p>
-              {scheduledAt && new Date(scheduledAt) <= new Date() && (
-                <p className="text-xs text-red-400 mt-1">請選擇未來的時間</p>
+            <div className="space-y-4">
+              {/* Quick select */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  快速選擇
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {(() => {
+                    const now = new Date();
+                    const pad = (n: number) => n.toString().padStart(2, "0");
+                    const toLocalStr = (d: Date) =>
+                      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+                    // Today shortcuts (only show if time hasn't passed)
+                    const todayNoon = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0);
+                    const today6pm = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0);
+                    const today9pm = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 21, 0);
+                    // Tomorrow shortcuts
+                    const tmr = new Date(now);
+                    tmr.setDate(tmr.getDate() + 1);
+                    const tmr9am = new Date(tmr.getFullYear(), tmr.getMonth(), tmr.getDate(), 9, 0);
+                    const tmrNoon = new Date(tmr.getFullYear(), tmr.getMonth(), tmr.getDate(), 12, 0);
+                    const tmr6pm = new Date(tmr.getFullYear(), tmr.getMonth(), tmr.getDate(), 18, 0);
+
+                    const options: { label: string; value: Date }[] = [];
+                    if (todayNoon > now) options.push({ label: "今天中午 12:00", value: todayNoon });
+                    if (today6pm > now) options.push({ label: "今天傍晚 18:00", value: today6pm });
+                    if (today9pm > now) options.push({ label: "今天晚上 21:00", value: today9pm });
+                    options.push({ label: "明天早上 09:00", value: tmr9am });
+                    options.push({ label: "明天中午 12:00", value: tmrNoon });
+                    options.push({ label: "明天傍晚 18:00", value: tmr6pm });
+
+                    return options.slice(0, 6).map((opt) => (
+                      <button
+                        key={opt.label}
+                        type="button"
+                        onClick={() => setScheduledAt(toLocalStr(opt.value))}
+                        className={`p-2.5 rounded-xl border text-left text-sm transition-all ${
+                          scheduledAt === toLocalStr(opt.value)
+                            ? "bg-blue-600/10 border-blue-500/30 text-blue-300"
+                            : "bg-gray-950 border-gray-800 text-gray-400 hover:bg-gray-800 hover:text-gray-300"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ));
+                  })()}
+                </div>
+              </div>
+
+              {/* Custom date/time */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  或自訂日期時間
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={scheduledAt ? scheduledAt.split("T")[0] : ""}
+                    onChange={(e) => {
+                      const time = scheduledAt ? scheduledAt.split("T")[1] || "09:00" : "09:00";
+                      setScheduledAt(`${e.target.value}T${time}`);
+                    }}
+                    min={new Date().toISOString().split("T")[0]}
+                    className="flex-1 px-4 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors text-sm"
+                  />
+                  <select
+                    value={scheduledAt ? scheduledAt.split("T")[1]?.slice(0, 5) || "09:00" : "09:00"}
+                    onChange={(e) => {
+                      const date = scheduledAt ? scheduledAt.split("T")[0] : new Date().toISOString().split("T")[0];
+                      setScheduledAt(`${date}T${e.target.value}`);
+                    }}
+                    className="w-28 px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors text-sm"
+                  >
+                    {Array.from({ length: 48 }, (_, i) => {
+                      const h = Math.floor(i / 2);
+                      const m = i % 2 === 0 ? "00" : "30";
+                      const val = `${h.toString().padStart(2, "0")}:${m}`;
+                      const label = `${h.toString().padStart(2, "0")}:${m}`;
+                      return (
+                        <option key={val} value={val}>
+                          {label}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              </div>
+
+              {/* Selected time preview */}
+              {scheduledAt && (
+                <div className={`p-3 rounded-xl border text-sm ${
+                  new Date(scheduledAt) <= new Date()
+                    ? "bg-red-900/20 border-red-800/30 text-red-400"
+                    : "bg-blue-900/20 border-blue-800/30 text-blue-300"
+                }`}>
+                  {new Date(scheduledAt) <= new Date() ? (
+                    <span>⚠️ 所選時間已過，請選擇未來的時間</span>
+                  ) : (
+                    <span>
+                      📅 將在{" "}
+                      <strong>
+                        {new Date(scheduledAt).toLocaleString("zh-TW", {
+                          month: "long",
+                          day: "numeric",
+                          weekday: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </strong>
+                      {" "}自動發布
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           )}
