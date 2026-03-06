@@ -110,6 +110,16 @@ export default function SchedulePage() {
           ✅ 排程建立成功！系統會在排程時間自動發布貼文。
         </div>
       )}
+      {success === "published" && (
+        <div className="px-4 py-3 bg-green-900/30 border border-green-700/50 rounded-xl text-green-300 text-sm">
+          🚀 貼文已成功發布！
+        </div>
+      )}
+      {success === "partial" && (
+        <div className="px-4 py-3 bg-yellow-900/30 border border-yellow-700/50 rounded-xl text-yellow-300 text-sm">
+          ⚠️ 部分平台發布成功，請檢查失敗的項目。
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">

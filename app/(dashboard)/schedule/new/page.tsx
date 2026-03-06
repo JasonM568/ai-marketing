@@ -54,6 +54,7 @@ export default function NewSchedulePage() {
   const [selectedAccounts, setSelectedAccounts] = useState<
     { accountId: string; platform: string; username: string }[]
   >([]);
+  const [publishMode, setPublishMode] = useState<"schedule" | "now">("schedule");
   const [scheduledAt, setScheduledAt] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -211,6 +212,7 @@ export default function NewSchedulePage() {
       case 3:
         return selectedAccounts.length > 0;
       case 4:
+        if (publishMode === "now") return true;
         return !!scheduledAt && new Date(scheduledAt) > new Date();
       default:
         return true;
@@ -221,25 +223,31 @@ export default function NewSchedulePage() {
     setError("");
     setSaving(true);
     try {
-      const scheduledDate = new Date(scheduledAt);
+      const isNow = publishMode === "now";
+      const apiUrl = isNow ? "/api/schedule/publish-now" : "/api/schedule";
       const results: { platform: string; success: boolean; error?: string }[] = [];
 
-      // Create one schedule per selected platform
       for (const acc of selectedAccounts) {
         try {
-          const res = await fetch("/api/schedule", {
+          const payload: Record<string, unknown> = {
+            brandId: selectedBrand,
+            socialAccountId: acc.accountId,
+            platform: acc.platform,
+            content,
+            imageUrl: imageUrl || null,
+            draftId: selectedDraftId,
+          };
+
+          // Only include scheduledAt for scheduled posts
+          if (!isNow) {
+            payload.scheduledAt = new Date(scheduledAt).toISOString();
+          }
+
+          const res = await fetch(apiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
-            body: JSON.stringify({
-              brandId: selectedBrand,
-              socialAccountId: acc.accountId,
-              platform: acc.platform,
-              content,
-              imageUrl: imageUrl || null,
-              scheduledAt: scheduledDate.toISOString(),
-              draftId: selectedDraftId,
-            }),
+            body: JSON.stringify(payload),
           });
 
           if (!res.ok) {
@@ -255,19 +263,21 @@ export default function NewSchedulePage() {
 
       const failed = results.filter((r) => !r.success);
       if (failed.length > 0 && failed.length === results.length) {
-        setError(`所有平台排程失敗：${failed.map((f) => `${f.platform}(${f.error})`).join("、")}`);
+        const action = isNow ? "發布" : "排程";
+        setError(`所有平台${action}失敗：${failed.map((f) => `${f.platform}(${f.error})`).join("、")}`);
         return;
       }
+
+      const successParam = isNow ? "published" : "scheduled";
       if (failed.length > 0) {
-        // Partial success
         router.push(
           `/schedule?success=partial&failed=${failed.map((f) => f.platform).join(",")}`
         );
       } else {
-        router.push("/schedule?success=scheduled");
+        router.push(`/schedule?success=${successParam}`);
       }
     } catch {
-      setError("建立排程失敗，請重試");
+      setError("操作失敗，請重試");
     } finally {
       setSaving(false);
     }
@@ -318,7 +328,7 @@ export default function NewSchedulePage() {
               { n: 1, label: "選擇品牌" },
               { n: 2, label: "撰寫內容" },
               { n: 3, label: "選擇平台" },
-              { n: 4, label: "排程時間" },
+              { n: 4, label: "發布方式" },
               { n: 5, label: "確認送出" },
             ].map((s, i) => (
               <div key={s.n} className="flex items-center gap-2">
@@ -595,94 +605,149 @@ export default function NewSchedulePage() {
             </div>
           )}
 
-          {/* Step 4: Schedule Time */}
+          {/* Step 4: Publish Mode & Schedule Time */}
           {step === 4 && (
             <div className="space-y-4">
-              {/* Quick select */}
+              {/* Publish mode selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  快速選擇
+                <label className="block text-sm font-medium text-gray-300 mb-3">
+                  選擇發布方式
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {(() => {
-                    const now = new Date();
-                    const pad = (n: number) => n.toString().padStart(2, "0");
-                    const toLocalStr = (d: Date) =>
-                      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-
-                    // Today shortcuts (only show if time hasn't passed)
-                    const todayNoon = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0);
-                    const today6pm = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0);
-                    const today9pm = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 21, 0);
-                    // Tomorrow shortcuts
-                    const tmr = new Date(now);
-                    tmr.setDate(tmr.getDate() + 1);
-                    const tmr9am = new Date(tmr.getFullYear(), tmr.getMonth(), tmr.getDate(), 9, 0);
-                    const tmrNoon = new Date(tmr.getFullYear(), tmr.getMonth(), tmr.getDate(), 12, 0);
-                    const tmr6pm = new Date(tmr.getFullYear(), tmr.getMonth(), tmr.getDate(), 18, 0);
-
-                    const options: { label: string; value: Date }[] = [];
-                    if (todayNoon > now) options.push({ label: "今天中午 12:00", value: todayNoon });
-                    if (today6pm > now) options.push({ label: "今天傍晚 18:00", value: today6pm });
-                    if (today9pm > now) options.push({ label: "今天晚上 21:00", value: today9pm });
-                    options.push({ label: "明天早上 09:00", value: tmr9am });
-                    options.push({ label: "明天中午 12:00", value: tmrNoon });
-                    options.push({ label: "明天傍晚 18:00", value: tmr6pm });
-
-                    return options.slice(0, 6).map((opt) => (
-                      <button
-                        key={opt.label}
-                        type="button"
-                        onClick={() => setScheduledAt(toLocalStr(opt.value))}
-                        className={`p-2.5 rounded-xl border text-left text-sm transition-all ${
-                          scheduledAt === toLocalStr(opt.value)
-                            ? "bg-blue-600/10 border-blue-500/30 text-blue-300"
-                            : "bg-gray-950 border-gray-800 text-gray-400 hover:bg-gray-800 hover:text-gray-300"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ));
-                  })()}
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPublishMode("now")}
+                    className={`p-4 rounded-xl border text-left transition-all ${
+                      publishMode === "now"
+                        ? "bg-green-600/10 border-green-500/30"
+                        : "bg-gray-950 border-gray-800 hover:bg-gray-800"
+                    }`}
+                  >
+                    <div className="text-2xl mb-1">🚀</div>
+                    <div className={`font-medium text-sm ${publishMode === "now" ? "text-green-300" : "text-gray-300"}`}>
+                      立即發布
+                    </div>
+                    <div className="text-[11px] text-gray-600 mt-0.5">
+                      確認後馬上發送到平台
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPublishMode("schedule")}
+                    className={`p-4 rounded-xl border text-left transition-all ${
+                      publishMode === "schedule"
+                        ? "bg-blue-600/10 border-blue-500/30"
+                        : "bg-gray-950 border-gray-800 hover:bg-gray-800"
+                    }`}
+                  >
+                    <div className="text-2xl mb-1">📅</div>
+                    <div className={`font-medium text-sm ${publishMode === "schedule" ? "text-blue-300" : "text-gray-300"}`}>
+                      排程發布
+                    </div>
+                    <div className="text-[11px] text-gray-600 mt-0.5">
+                      設定時間自動發布
+                    </div>
+                  </button>
                 </div>
               </div>
 
-              {/* Custom datetime picker */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  或自訂日期時間
-                </label>
-                <input
-                  type="datetime-local"
-                  value={scheduledAt}
-                  onChange={(e) => setScheduledAt(e.target.value)}
-                  min={minDatetime}
-                  className="w-full px-4 py-3 bg-gray-950 border border-gray-800 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors text-sm [color-scheme:dark]"
-                />
-              </div>
+              {/* Immediate publish info */}
+              {publishMode === "now" && (
+                <div className="p-3 rounded-xl border bg-green-900/20 border-green-800/30 text-sm text-green-300">
+                  🚀 將在確認後立即發布到{selectedAccounts.length > 1
+                    ? ` ${selectedAccounts.length} 個平台`
+                    : "所選平台"}
+                </div>
+              )}
 
-              {/* Selected time preview */}
-              {scheduledAt && (
-                <div className={`p-3 rounded-xl border text-sm ${
-                  new Date(scheduledAt) <= new Date()
-                    ? "bg-red-900/20 border-red-800/30 text-red-400"
-                    : "bg-blue-900/20 border-blue-800/30 text-blue-300"
-                }`}>
-                  {new Date(scheduledAt) <= new Date() ? (
-                    <span>⚠️ 所選時間已過，請選擇未來的時間</span>
-                  ) : (
-                    <span>
-                      📅 將在{" "}
-                      <strong>{formatDatetime(scheduledAt)}</strong>
-                      {" "}自動發布
-                      {selectedAccounts.length > 1 && (
-                        <span className="text-blue-400/70">
-                          {" "}（{selectedAccounts.length} 個平台同步發布）
+              {/* Schedule time picker */}
+              {publishMode === "schedule" && (
+                <>
+                  {/* Quick select */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      快速選擇
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {(() => {
+                        const now = new Date();
+                        const pad = (n: number) => n.toString().padStart(2, "0");
+                        const toLocalStr = (d: Date) =>
+                          `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+                        const todayNoon = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0);
+                        const today6pm = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0);
+                        const today9pm = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 21, 0);
+                        const tmr = new Date(now);
+                        tmr.setDate(tmr.getDate() + 1);
+                        const tmr9am = new Date(tmr.getFullYear(), tmr.getMonth(), tmr.getDate(), 9, 0);
+                        const tmrNoon = new Date(tmr.getFullYear(), tmr.getMonth(), tmr.getDate(), 12, 0);
+                        const tmr6pm = new Date(tmr.getFullYear(), tmr.getMonth(), tmr.getDate(), 18, 0);
+
+                        const options: { label: string; value: Date }[] = [];
+                        if (todayNoon > now) options.push({ label: "今天中午 12:00", value: todayNoon });
+                        if (today6pm > now) options.push({ label: "今天傍晚 18:00", value: today6pm });
+                        if (today9pm > now) options.push({ label: "今天晚上 21:00", value: today9pm });
+                        options.push({ label: "明天早上 09:00", value: tmr9am });
+                        options.push({ label: "明天中午 12:00", value: tmrNoon });
+                        options.push({ label: "明天傍晚 18:00", value: tmr6pm });
+
+                        return options.slice(0, 6).map((opt) => (
+                          <button
+                            key={opt.label}
+                            type="button"
+                            onClick={() => setScheduledAt(toLocalStr(opt.value))}
+                            className={`p-2.5 rounded-xl border text-left text-sm transition-all ${
+                              scheduledAt === toLocalStr(opt.value)
+                                ? "bg-blue-600/10 border-blue-500/30 text-blue-300"
+                                : "bg-gray-950 border-gray-800 text-gray-400 hover:bg-gray-800 hover:text-gray-300"
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Custom datetime picker */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      或自訂日期時間
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={scheduledAt}
+                      onChange={(e) => setScheduledAt(e.target.value)}
+                      min={minDatetime}
+                      className="w-full px-4 py-3 bg-gray-950 border border-gray-800 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors text-sm [color-scheme:dark]"
+                    />
+                  </div>
+
+                  {/* Selected time preview */}
+                  {scheduledAt && (
+                    <div className={`p-3 rounded-xl border text-sm ${
+                      new Date(scheduledAt) <= new Date()
+                        ? "bg-red-900/20 border-red-800/30 text-red-400"
+                        : "bg-blue-900/20 border-blue-800/30 text-blue-300"
+                    }`}>
+                      {new Date(scheduledAt) <= new Date() ? (
+                        <span>⚠️ 所選時間已過，請選擇未來的時間</span>
+                      ) : (
+                        <span>
+                          📅 將在{" "}
+                          <strong>{formatDatetime(scheduledAt)}</strong>
+                          {" "}自動發布
+                          {selectedAccounts.length > 1 && (
+                            <span className="text-blue-400/70">
+                              {" "}（{selectedAccounts.length} 個平台同步發布）
+                            </span>
+                          )}
                         </span>
                       )}
-                    </span>
+                    </div>
                   )}
-                </div>
+                </>
               )}
             </div>
           )}
@@ -690,12 +755,20 @@ export default function NewSchedulePage() {
           {/* Step 5: Preview & Submit */}
           {step === 5 && (
             <div className="space-y-4">
-              <h3 className="text-sm font-medium text-gray-300">確認排程資訊</h3>
+              <h3 className="text-sm font-medium text-gray-300">
+                {publishMode === "now" ? "確認發布資訊" : "確認排程資訊"}
+              </h3>
               <div className="bg-gray-950 border border-gray-800 rounded-xl p-4 space-y-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">品牌</span>
                   <span className="text-white">
                     {brands.find((b) => b.id === selectedBrand)?.name || "-"}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">發布方式</span>
+                  <span className={publishMode === "now" ? "text-green-400" : "text-blue-400"}>
+                    {publishMode === "now" ? "🚀 立即發布" : "📅 排程發布"}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -709,13 +782,19 @@ export default function NewSchedulePage() {
                     ))}
                   </div>
                 </div>
+                {publishMode === "schedule" && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">排程時間</span>
+                    <span className="text-white">{formatDatetime(scheduledAt)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">排程時間</span>
-                  <span className="text-white">{formatDatetime(scheduledAt)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">排程數量</span>
-                  <span className="text-blue-400">{selectedAccounts.length} 筆排程</span>
+                  <span className="text-gray-500">
+                    {publishMode === "now" ? "發布數量" : "排程數量"}
+                  </span>
+                  <span className={publishMode === "now" ? "text-green-400" : "text-blue-400"}>
+                    {selectedAccounts.length} 個平台
+                  </span>
                 </div>
                 {imageUrl && (
                   <div className="space-y-2">
@@ -738,6 +817,13 @@ export default function NewSchedulePage() {
                   </p>
                 </div>
               </div>
+
+              {/* Warning for immediate publish */}
+              {publishMode === "now" && (
+                <div className="p-3 rounded-xl border bg-yellow-900/20 border-yellow-800/30 text-sm text-yellow-300">
+                  ⚠️ 確認後將<strong>立即</strong>發送到所選平台，此操作無法撤回
+                </div>
+              )}
             </div>
           )}
 
@@ -767,11 +853,17 @@ export default function NewSchedulePage() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={saving}
-                className="px-5 py-2.5 bg-green-600 hover:bg-green-500 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+                className={`px-5 py-2.5 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50 ${
+                  publishMode === "now"
+                    ? "bg-green-600 hover:bg-green-500"
+                    : "bg-blue-600 hover:bg-blue-500"
+                }`}
               >
                 {saving
-                  ? "排程中..."
-                  : `✅ 確認排程發布（${selectedAccounts.length} 個平台）`}
+                  ? publishMode === "now" ? "發布中..." : "排程中..."
+                  : publishMode === "now"
+                  ? `🚀 確認立即發布（${selectedAccounts.length} 個平台）`
+                  : `📅 確認排程發布（${selectedAccounts.length} 個平台）`}
               </button>
             )}
 
