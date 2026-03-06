@@ -54,11 +54,10 @@ export default function DashboardLayout({
 
   const allNavItems = [
     { href: "/dashboard", label: "工作總覽", icon: "📊", desc: "數據與快速指令" },
-    { href: "/workspace", label: "工作台", icon: "✨", desc: "AI 內容產出" },
     { href: "/brands", label: "品牌管理", icon: "🏷️", desc: "品牌資料庫" },
-    { href: "/agents", label: "AI 代理", icon: "🤖", desc: "代理管理" },
-    { href: "/drafts", label: "草稿庫", icon: "📄", desc: "產出記錄" },
-    { href: "/schedule", label: "排程發布", icon: "📅", desc: "排程管理" },
+    { href: "/workspace", label: "工作區", icon: "✨", desc: "AI 內容產出" },
+    { href: "/agents", label: "AI 助理", icon: "🤖", desc: "代理管理", adminOnly: true },
+    { href: "/drafts", label: "草稿材料庫", icon: "📄", desc: "產出記錄" },
     { href: "/pricing", label: "方案價格", icon: "💰", desc: "訂閱方案" },
     { href: "/my-plan", label: "我的方案", icon: "💳", desc: "點數與用量", subscriberOnly: true },
     { href: "/billing", label: "帳單紀錄", icon: "🧾", desc: "付款記錄", subscriberOnly: true },
@@ -70,7 +69,6 @@ export default function DashboardLayout({
     if (session?.role === "admin") return true;
     if ("adminOnly" in item && item.adminOnly) return false;
     if ("subscriberOnly" in item && item.subscriberOnly && session?.role !== "subscriber") return false;
-    if (item.href === "/agents" && session?.role === "subscriber") return false;
     return true;
   });
 
