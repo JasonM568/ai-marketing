@@ -24,8 +24,10 @@ export function getMetaOAuthUrl(state: string): string {
     "pages_show_list",
     "pages_manage_posts",
     "pages_read_engagement",
+    "pages_manage_engagement",
     "instagram_basic",
     "instagram_content_publish",
+    "instagram_manage_comments",
   ].join(",");
 
   const params = new URLSearchParams({
@@ -268,4 +270,44 @@ export async function postToThreads(
   }
   const published = await publishRes.json();
   return published.id;
+}
+
+// ===== Comment Replies =====
+
+export async function replyToFacebookComment(
+  commentId: string,
+  pageToken: string,
+  message: string
+): Promise<string> {
+  const res = await fetch(`${META_GRAPH_API}/${commentId}/comments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, access_token: pageToken }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`FB comment reply failed: ${err}`);
+  }
+  const data = await res.json();
+  return data.id;
+}
+
+export async function replyToInstagramComment(
+  commentId: string,
+  token: string,
+  message: string
+): Promise<string> {
+  const res = await fetch(`${META_GRAPH_API}/${commentId}/replies`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, access_token: token }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`IG comment reply failed: ${err}`);
+  }
+  const data = await res.json();
+  return data.id;
 }

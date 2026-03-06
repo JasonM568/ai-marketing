@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -54,6 +54,10 @@ export default function NewSchedulePage() {
   const [selectedPlatform, setSelectedPlatform] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load brands
   useEffect(() => {
@@ -109,6 +113,59 @@ export default function NewSchedulePage() {
 
   function getPlatformIcon(platform: string) {
     return platformIcons[platform.toLowerCase()] || "📱";
+  }
+
+  // Image upload handler
+  const handleImageUpload = useCallback(async (file: File) => {
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.type)) {
+      setError("僅支援 JPG、PNG、WebP、GIF 圖片格式");
+      return;
+    }
+    if (file.size > 4.5 * 1024 * 1024) {
+      setError("圖片大小不能超過 4.5MB");
+      return;
+    }
+
+    setUploading(true);
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "圖片上傳失敗");
+        return;
+      }
+      const { url } = await res.json();
+      setImageUrl(url);
+    } catch {
+      setError("圖片上傳失敗，請重試");
+    } finally {
+      setUploading(false);
+    }
+  }, []);
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragActive(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleImageUpload(file);
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    setDragActive(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    setDragActive(false);
   }
 
   function canProceed() {
@@ -316,15 +373,86 @@ export default function NewSchedulePage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                  圖片網址（可選）
+                  圖片（可選）
                 </label>
-                <input
-                  type="url"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="https://example.com/image.jpg"
-                  className="w-full px-4 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-white placeholder:text-gray-700 focus:outline-none focus:border-blue-500 transition-colors text-sm"
-                />
+
+                {imageUrl ? (
+                  /* Image preview */
+                  <div className="relative rounded-xl border border-gray-800 overflow-hidden bg-gray-950">
+                    <img
+                      src={imageUrl}
+                      alt="預覽圖片"
+                      className="w-full max-h-64 object-contain"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setImageUrl("")}
+                      className="absolute top-2 right-2 w-7 h-7 bg-gray-900/80 hover:bg-red-600/80 text-gray-400 hover:text-white rounded-full flex items-center justify-center transition-colors text-sm"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : uploading ? (
+                  /* Upload progress */
+                  <div className="flex flex-col items-center justify-center py-8 rounded-xl border-2 border-dashed border-blue-500/30 bg-blue-950/10">
+                    <div className="w-6 h-6 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin mb-2" />
+                    <p className="text-sm text-blue-400">上傳中...</p>
+                  </div>
+                ) : (
+                  /* Drag & drop zone */
+                  <div
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`flex flex-col items-center justify-center py-8 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${
+                      dragActive
+                        ? "border-blue-500 bg-blue-950/20"
+                        : "border-gray-700 hover:border-gray-600 bg-gray-950"
+                    }`}
+                  >
+                    <span className="text-3xl mb-2">📷</span>
+                    <p className="text-sm text-gray-400">
+                      拖曳圖片到這裡，或<span className="text-blue-400">點擊選擇</span>
+                    </p>
+                    <p className="text-[11px] text-gray-600 mt-1">
+                      支援 JPG、PNG、WebP、GIF（最大 4.5MB）
+                    </p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file);
+                        e.target.value = "";
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* URL fallback toggle */}
+                {!imageUrl && !uploading && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowUrlInput(!showUrlInput)}
+                      className="text-[11px] text-gray-600 hover:text-gray-400 transition-colors"
+                    >
+                      {showUrlInput ? "收起" : "或貼上圖片網址 ›"}
+                    </button>
+                    {showUrlInput && (
+                      <input
+                        type="url"
+                        value={imageUrl}
+                        onChange={(e) => setImageUrl(e.target.value)}
+                        placeholder="https://example.com/image.jpg"
+                        className="w-full mt-1.5 px-4 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-white placeholder:text-gray-700 focus:outline-none focus:border-blue-500 transition-colors text-sm"
+                      />
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -532,9 +660,16 @@ export default function NewSchedulePage() {
                   </span>
                 </div>
                 {imageUrl && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">圖片</span>
-                    <span className="text-blue-400 truncate max-w-[200px]">{imageUrl}</span>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">圖片</span>
+                      <span className="text-green-400 text-xs">✅ 已附圖</span>
+                    </div>
+                    <img
+                      src={imageUrl}
+                      alt="附圖預覽"
+                      className="w-full max-h-48 object-contain rounded-lg border border-gray-800"
+                    />
                   </div>
                 )}
                 <div className="border-t border-gray-800 pt-3">

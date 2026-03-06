@@ -76,6 +76,12 @@ export default function BrandSocialPage() {
     window.location.href = `/api/social/meta/auth?brandId=${brandId}`;
   }
 
+  function handleConnectThreads() {
+    window.location.href = `/api/social/threads/auth?brandId=${brandId}`;
+  }
+
+  const hasThreads = accounts.some((a) => a.platform === "threads");
+
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">
       {/* Header */}
@@ -92,25 +98,36 @@ export default function BrandSocialPage() {
       <p className="text-gray-400 mb-6">連結 Meta 平台帳號（Facebook、Instagram、Threads），以便使用排程發文功能。</p>
 
       {/* Status messages */}
-      {success === "connected" && (
+      {(success === "connected" || success === "threads_connected") && (
         <div className="mb-4 px-4 py-3 bg-green-900/30 border border-green-700/50 rounded-xl text-green-300 text-sm">
-          ✅ 社群帳號連結成功！
+          ✅ {success === "threads_connected" ? "Threads 帳號連結成功！" : "社群帳號連結成功！"}
         </div>
       )}
       {error && (
         <div className="mb-4 px-4 py-3 bg-red-900/30 border border-red-700/50 rounded-xl text-red-300 text-sm">
-          ❌ 連結失敗：{error === "oauth_denied" ? "您拒絕了授權" : error === "no_pages" ? "找不到管理的粉專" : "發生錯誤"}
+          ❌ 連結失敗：{error === "oauth_denied" || error === "threads_oauth_denied" ? "您拒絕了授權" : error === "no_pages" ? "找不到管理的粉專" : error === "threads_callback_failed" ? "Threads 連結發生錯誤" : "發生錯誤"}
         </div>
       )}
 
-      {/* Connect button */}
-      <button
-        onClick={handleConnect}
-        className="mb-8 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-colors font-medium flex items-center gap-2"
-      >
-        <span className="text-lg">🔗</span>
-        連結 Meta 帳號（FB / IG / Threads）
-      </button>
+      {/* Connect buttons */}
+      <div className="flex flex-wrap gap-3 mb-8">
+        <button
+          onClick={handleConnect}
+          className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-colors font-medium flex items-center gap-2"
+        >
+          <span className="text-lg">🔗</span>
+          連結 Meta 帳號（FB / IG）
+        </button>
+        {!hasThreads && (
+          <button
+            onClick={handleConnectThreads}
+            className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl transition-colors font-medium flex items-center gap-2"
+          >
+            <span className="text-lg">🧵</span>
+            連結 Threads 帳號
+          </button>
+        )}
+      </div>
 
       {/* Connected accounts */}
       <h2 className="text-lg font-semibold text-white mb-4">已連結帳號</h2>

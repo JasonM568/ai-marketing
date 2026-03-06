@@ -7,6 +7,7 @@ export interface SubscriptionPlan {
   price: number;
   monthlyCredits: number;
   maxBrands: number;
+  allPostsMonitoring: boolean;
   description: string;
   features: string[];
 }
@@ -19,11 +20,13 @@ export const PLANS: Record<string, SubscriptionPlan> = {
     price: 999,
     monthlyCredits: 30,
     maxBrands: 1,
+    allPostsMonitoring: false,
     description: "適合個人品牌經營",
     features: [
       "每月 30 點數",
       "約可產出 20 篇短文",
       "管理 1 個品牌",
+      "指定貼文留言監控",
       "點數可累積（最多 2 個月）",
     ],
   },
@@ -34,11 +37,13 @@ export const PLANS: Record<string, SubscriptionPlan> = {
     price: 1499,
     monthlyCredits: 80,
     maxBrands: 2,
+    allPostsMonitoring: false,
     description: "適合小型企業多平台經營",
     features: [
       "每月 80 點數",
       "約可產出 60 篇短文",
       "管理 2 個品牌",
+      "指定貼文留言監控",
       "點數可累積（最多 2 個月）",
     ],
   },
@@ -49,11 +54,13 @@ export const PLANS: Record<string, SubscriptionPlan> = {
     price: 1999,
     monthlyCredits: 250,
     maxBrands: 5,
+    allPostsMonitoring: true,
     description: "適合行銷公司 / 多品牌管理",
     features: [
       "每月 250 點數",
       "約可產出 180 篇短文",
       "管理 5 個品牌",
+      "所有貼文留言監控",
       "點數可累積（最多 2 個月）",
     ],
   },
@@ -76,7 +83,14 @@ export const CONTENT_COSTS: ContentCost[] = [
   { type: "blog_seo", label: "部落格 / SEO", credits: 4, description: "SEO 長文章" },
   { type: "strategy", label: "策略分析", credits: 5, description: "品牌策略 / 趨勢分析" },
   { type: "followup", label: "對話追問", credits: 1, description: "微調 / 追問 / 修改" },
+  { type: "comment_reply", label: "留言回覆", credits: 1, description: "AI 自動回覆留言" },
 ];
+
+// 是否可使用「所有貼文」監控模式
+export function canUseAllPostsMonitoring(planId: string): boolean {
+  const plan = PLANS[planId];
+  return plan?.allPostsMonitoring || false;
+}
 
 // 根據 agent category + code 判斷扣多少點
 export function getCreditsForAgent(agentCode: string, category: string): { credits: number; contentType: string; tokenAllowance: number } {

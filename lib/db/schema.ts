@@ -207,6 +207,53 @@ export const paymentRecords = pgTable("payment_records", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// ===== 留言監控 + AI 回覆 =====
+
+export const commentMonitors = pgTable("comment_monitors", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  brandId: uuid("brand_id").notNull(),
+  socialAccountId: uuid("social_account_id").notNull(),
+  platform: varchar("platform", { length: 20 }).notNull(),
+  monitorMode: varchar("monitor_mode", { length: 20 }).default("specific").notNull(),
+  publishedPostId: varchar("published_post_id", { length: 200 }),
+  postContentPreview: text("post_content_preview"),
+  status: varchar("status", { length: 20 }).default("active").notNull(),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const incomingComments = pgTable("incoming_comments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  monitorId: uuid("monitor_id"),
+  brandId: uuid("brand_id").notNull(),
+  platform: varchar("platform", { length: 20 }).notNull(),
+  platformCommentId: varchar("platform_comment_id", { length: 200 }).unique().notNull(),
+  platformPostId: varchar("platform_post_id", { length: 200 }).notNull(),
+  parentCommentId: varchar("parent_comment_id", { length: 200 }),
+  commenterName: varchar("commenter_name", { length: 200 }),
+  commenterId: varchar("commenter_id", { length: 200 }),
+  commentText: text("comment_text").notNull(),
+  commentTimestamp: timestamp("comment_timestamp"),
+  status: varchar("status", { length: 20 }).default("new").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const replySuggestions = pgTable("reply_suggestions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  commentId: uuid("comment_id").notNull(),
+  brandId: uuid("brand_id").notNull(),
+  suggestedText: text("suggested_text").notNull(),
+  aiModel: varchar("ai_model", { length: 50 }).default("claude-sonnet-4-20250514"),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  editedText: text("edited_text"),
+  postedReplyId: varchar("posted_reply_id", { length: 200 }),
+  postedAt: timestamp("posted_at"),
+  reviewedBy: uuid("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Type exports
 export type Brand = typeof brands.$inferSelect;
 export type Agent = typeof agents.$inferSelect;
@@ -220,3 +267,6 @@ export type SocialAccount = typeof socialAccounts.$inferSelect;
 export type ScheduledPost = typeof scheduledPosts.$inferSelect;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type PaymentRecord = typeof paymentRecords.$inferSelect;
+export type CommentMonitor = typeof commentMonitors.$inferSelect;
+export type IncomingComment = typeof incomingComments.$inferSelect;
+export type ReplySuggestion = typeof replySuggestions.$inferSelect;

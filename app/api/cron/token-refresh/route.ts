@@ -4,6 +4,7 @@ import { socialAccounts } from "@/lib/db/schema";
 import { eq, and, lte } from "drizzle-orm";
 import { decrypt, encrypt } from "@/lib/crypto";
 import { refreshToken } from "@/lib/meta";
+import { refreshThreadsToken } from "@/lib/threads";
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,8 +34,10 @@ export async function GET(request: NextRequest) {
         // Decrypt current token
         const currentToken = decrypt(account.accessToken);
 
-        // Refresh the token
-        const { token: newToken, expiresIn } = await refreshToken(currentToken);
+        // Refresh the token (Threads uses a different API endpoint)
+        const { token: newToken, expiresIn } = account.platform === "threads"
+          ? await refreshThreadsToken(currentToken)
+          : await refreshToken(currentToken);
         const newExpiresAt = new Date(Date.now() + expiresIn * 1000);
 
         // Encrypt and save new token
