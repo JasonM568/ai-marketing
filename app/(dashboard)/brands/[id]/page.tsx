@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
@@ -14,9 +14,22 @@ const TABS = [
   { id: "contentPillars", label: "內容策略", icon: "📐", desc: "內容分類與策略規劃" },
   { id: "pastHits", label: "高成效參考", icon: "🔥", desc: "過去表現良好的內容參考" },
   { id: "brandStory", label: "品牌故事", icon: "📖", desc: "品牌起源與核心理念" },
+  { id: "files", label: "參考資料", icon: "📎", desc: "上傳品牌參考文件供 AI 使用" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
+
+interface BrandFileItem {
+  id: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  createdAt: string;
+}
+
+const FILE_ICONS: Record<string, string> = {
+  pdf: "📕", csv: "📊", docx: "📘", doc: "📘", txt: "📄",
+};
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   active: { label: "營運中", cls: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
@@ -44,6 +57,13 @@ export default function BrandDetailPage() {
   const [showDelete, setShowDelete] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [userRole, setUserRole] = useState<string>("editor");
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const statusDropdownRef = useRef<HTMLDivElement>(null);
+  const [files, setFiles] = useState<BrandFileItem[]>([]);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   const fetchBrand = useCallback(async () => {
     try {
@@ -65,6 +85,38 @@ export default function BrandDetailPage() {
   useEffect(() => {
     fetchBrand();
   }, [fetchBrand]);
+
+  const fetchFiles = useCallback(async () => {
+    setFilesLoading(true);
+    try {
+      const res = await fetch(`/api/brands/${brandId}/files`);
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setFiles(data.files);
+    } catch {
+      console.error("Failed to fetch files");
+    } finally {
+      setFilesLoading(false);
+    }
+  }, [brandId]);
+
+  useEffect(() => {
+    if (activeTab === "files") {
+      fetchFiles();
+    }
+  }, [activeTab, fetchFiles]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
+        setStatusDropdownOpen(false);
+      }
+    }
+    if (statusDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [statusDropdownOpen]);
 
   const currentTab = TABS.find((t) => t.id === activeTab)!;
   const currentContent = brand ? ((brand as any)[activeTab] as string) || "" : "";
@@ -91,6 +143,67 @@ export default function BrandDetailPage() {
       alert("儲存失敗，請重試");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!brand || newStatus === brand.status) {
+      setStatusDropdownOpen(false);
+      return;
+    }
+    setStatusUpdating(true);
+    try {
+      const res = await fetch(`/api/brands/${brand.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setBrand(data.brand);
+    } catch {
+      alert("狀態更新失敗，請重試");
+    } finally {
+      setStatusUpdating(false);
+      setStatusDropdownOpen(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError("");
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch(`/api/brands/${brandId}/files`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "上傳失敗");
+      }
+      await fetchFiles();
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "上傳失敗");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleFileDelete = async (fileId: string, fileName: string) => {
+    if (!confirm(`確定要刪除 ${fileName} 嗎？`)) return;
+    try {
+      const res = await fetch(`/api/brands/${brandId}/files/${fileId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed");
+      setFiles((prev) => prev.filter((f) => f.id !== fileId));
+    } catch {
+      alert("刪除檔案失敗");
     }
   };
 
@@ -143,9 +256,35 @@ export default function BrandDetailPage() {
           <div className="flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold text-white">{brand.name}</h1>
-              <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${st.cls}`}>
-                {st.label}
-              </span>
+              <div className="relative" ref={statusDropdownRef}>
+                <button
+                  onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
+                  disabled={statusUpdating}
+                  className={`px-2 py-0.5 text-[10px] font-medium rounded-full border cursor-pointer hover:opacity-80 transition-opacity ${st.cls} ${statusUpdating ? "opacity-50" : ""}`}
+                >
+                  {statusUpdating ? "更新中..." : st.label}
+                </button>
+                {statusDropdownOpen && (
+                  <div className="absolute top-full left-0 mt-1 bg-gray-900 border border-white/10 rounded-xl shadow-xl z-50 py-1 min-w-[100px]">
+                    {Object.entries(STATUS_MAP).map(([key, val]) => (
+                      <button
+                        key={key}
+                        onClick={() => handleStatusChange(key)}
+                        className={`w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 hover:bg-white/5 transition-colors ${
+                          brand.status === key ? "text-white" : "text-gray-400"
+                        }`}
+                      >
+                        <span className={`w-2 h-2 rounded-full ${
+                          key === "active" ? "bg-emerald-400" :
+                          key === "draft" ? "bg-amber-400" : "bg-gray-400"
+                        }`} />
+                        {val.label}
+                        {brand.status === key && <span className="ml-auto text-blue-400">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
               <span className="font-mono text-xs">@{brand.brandCode}</span>
@@ -205,31 +344,98 @@ export default function BrandDetailPage() {
             </h2>
             <p className="text-[11px] text-gray-600 mt-0.5">{currentTab.desc}</p>
           </div>
-          {!editing ? (
-            <button
-              onClick={handleStartEdit}
-              className="px-3 py-1.5 bg-blue-600/10 text-blue-400 text-xs font-medium rounded-lg hover:bg-blue-600/20 transition-colors"
-            >
-              編輯
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button onClick={() => setEditing(false)} className="px-3 py-1.5 text-gray-500 text-xs hover:text-gray-300">
-                取消
-              </button>
+          {activeTab !== "files" && (
+            !editing ? (
               <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                onClick={handleStartEdit}
+                className="px-3 py-1.5 bg-blue-600/10 text-blue-400 text-xs font-medium rounded-lg hover:bg-blue-600/20 transition-colors"
               >
-                {saving ? "儲存中..." : "儲存"}
+                編輯
               </button>
-            </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button onClick={() => setEditing(false)} className="px-3 py-1.5 text-gray-500 text-xs hover:text-gray-300">
+                  取消
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {saving ? "儲存中..." : "儲存"}
+                </button>
+              </div>
+            )
           )}
         </div>
 
         <div className="p-5">
-          {editing ? (
+          {activeTab === "files" ? (
+            <div>
+              {/* Upload Area */}
+              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:border-blue-500/30 hover:bg-blue-600/5 transition-all">
+                <div className="text-center">
+                  <p className="text-2xl mb-1">📎</p>
+                  <p className="text-sm text-gray-400">
+                    {uploading ? "上傳中..." : "點擊上傳檔案"}
+                  </p>
+                  <p className="text-[10px] text-gray-600 mt-1">
+                    支援 PDF, DOCX, DOC, CSV, TXT（最大 10MB）
+                  </p>
+                </div>
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.docx,.doc,.csv,.txt"
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                />
+              </label>
+
+              {uploadError && (
+                <p className="text-red-400 text-xs mt-2">{uploadError}</p>
+              )}
+
+              {/* File List */}
+              <div className="mt-4 space-y-2">
+                {filesLoading ? (
+                  <div className="text-center py-8">
+                    <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto" />
+                  </div>
+                ) : files.length === 0 ? (
+                  <p className="text-center text-gray-600 py-8 text-sm">
+                    尚未上傳參考資料
+                  </p>
+                ) : (
+                  files.map((f) => (
+                    <div
+                      key={f.id}
+                      className="flex items-center justify-between px-4 py-3 bg-white/[0.02] border border-white/[0.06] rounded-xl"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg">{FILE_ICONS[f.fileType] || "📄"}</span>
+                        <div>
+                          <p className="text-sm text-white">{f.fileName}</p>
+                          <p className="text-[10px] text-gray-600">
+                            {(f.fileSize / 1024).toFixed(1)} KB · {new Date(f.createdAt).toLocaleDateString("zh-TW")}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleFileDelete(f.id, f.fileName)}
+                        className="p-1.5 text-gray-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                        title="刪除檔案"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          ) : editing ? (
             <textarea
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}

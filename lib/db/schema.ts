@@ -76,6 +76,20 @@ export const drafts = pgTable("drafts", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// ===== 品牌參考資料 =====
+
+export const brandFiles = pgTable("brand_files", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  brandId: uuid("brand_id").notNull(),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  fileType: varchar("file_type", { length: 50 }).notNull(),
+  fileSize: integer("file_size").notNull(),
+  storagePath: varchar("storage_path", { length: 500 }).notNull(),
+  extractedText: text("extracted_text"),
+  uploadedBy: uuid("uploaded_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // ===== 訂閱點數系統 =====
 
 // 用戶點數餘額（每個用戶一筆記錄）
@@ -126,3 +140,4 @@ export type Draft = typeof drafts.$inferSelect;
 export type UserCredit = typeof userCredits.$inferSelect;
 export type CreditUsage = typeof creditUsage.$inferSelect;
 export type CreditTransaction = typeof creditTransactions.$inferSelect;
+export type BrandFile = typeof brandFiles.$inferSelect;

@@ -120,6 +120,29 @@ export async function POST(request: NextRequest) {
       if (brandData.contentPillars) systemPrompt += `\n\n### 內容策略\n${brandData.contentPillars}`;
       if (brandData.pastHits) systemPrompt += `\n\n### 高成效參考\n${brandData.pastHits}`;
       if (brandData.brandStory) systemPrompt += `\n\n### 品牌故事\n${brandData.brandStory}`;
+
+      // Inject reference file content
+      try {
+        const { brandFiles: brandFilesTable } = await import("@/lib/db/schema");
+        const refFiles = await db
+          .select({
+            fileName: brandFilesTable.fileName,
+            extractedText: brandFilesTable.extractedText,
+          })
+          .from(brandFilesTable)
+          .where(eq(brandFilesTable.brandId, brandData.id));
+
+        if (refFiles.length > 0) {
+          systemPrompt += `\n\n### 參考資料`;
+          for (const file of refFiles) {
+            if (file.extractedText) {
+              systemPrompt += `\n\n#### ${file.fileName}\n${file.extractedText}`;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load brand files for context:", err);
+      }
     }
 
     const today = new Date().toLocaleDateString("zh-TW", { year: "numeric", month: "long", day: "numeric" });
