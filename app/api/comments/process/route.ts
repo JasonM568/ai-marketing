@@ -40,8 +40,8 @@ export async function POST(request: NextRequest) {
 
     for (const comment of newComments) {
       try {
-        // Deduct credit
-        const deducted = await deductCommentReplyCredit(user.userId, brandId);
+        // Deduct credit (admin 不扣點)
+        const deducted = await deductCommentReplyCredit(user.userId, brandId, user.role);
         if (!deducted) {
           results.push({ commentId: comment.id, status: "skipped", error: "點數不足" });
           break; // Stop processing if out of credits

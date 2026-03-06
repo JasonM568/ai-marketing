@@ -106,7 +106,14 @@ export async function postReplyToPlatform(
 
 // ===== Credit Deduction for Comment Reply =====
 
-export async function deductCommentReplyCredit(userId: string, brandId: string): Promise<boolean> {
+export async function deductCommentReplyCredit(
+  userId: string,
+  brandId: string,
+  userRole?: string
+): Promise<boolean> {
+  // Admin 不扣點，直接通過
+  if (userRole === "admin") return true;
+
   const [credits] = await db
     .select()
     .from(userCredits)

@@ -169,7 +169,7 @@ async function fetchAndStoreComments(
     for (const c of comments) {
       if (!c.id || !c.message) continue;
       try {
-        await db
+        const result = await db
           .insert(incomingComments)
           .values({
             monitorId,
@@ -184,10 +184,11 @@ async function fetchAndStoreComments(
             commentTimestamp: c.created_time ? new Date(c.created_time) : new Date(),
             status: "new",
           })
-          .onConflictDoNothing();
-        newCount++;
+          .onConflictDoNothing()
+          .returning({ id: incomingComments.id });
+        if (result.length > 0) newCount++;
       } catch {
-        // Duplicate — already exists, skip
+        // Error — skip
       }
     }
   }
@@ -197,7 +198,7 @@ async function fetchAndStoreComments(
     for (const c of comments) {
       if (!c.id || !c.text) continue;
       try {
-        await db
+        const result = await db
           .insert(incomingComments)
           .values({
             monitorId,
@@ -212,10 +213,11 @@ async function fetchAndStoreComments(
             commentTimestamp: c.timestamp ? new Date(c.timestamp) : new Date(),
             status: "new",
           })
-          .onConflictDoNothing();
-        newCount++;
+          .onConflictDoNothing()
+          .returning({ id: incomingComments.id });
+        if (result.length > 0) newCount++;
       } catch {
-        // Duplicate
+        // Error — skip
       }
     }
   }
@@ -225,7 +227,7 @@ async function fetchAndStoreComments(
     for (const r of replies) {
       if (!r.id || !r.text) continue;
       try {
-        await db
+        const result = await db
           .insert(incomingComments)
           .values({
             monitorId,
@@ -240,10 +242,11 @@ async function fetchAndStoreComments(
             commentTimestamp: r.timestamp ? new Date(r.timestamp) : new Date(),
             status: "new",
           })
-          .onConflictDoNothing();
-        newCount++;
+          .onConflictDoNothing()
+          .returning({ id: incomingComments.id });
+        if (result.length > 0) newCount++;
       } catch {
-        // Duplicate
+        // Error — skip
       }
     }
   }

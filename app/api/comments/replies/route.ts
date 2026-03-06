@@ -58,8 +58,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "留言不存在" }, { status: 404 });
     }
 
-    // Deduct credit
-    const deducted = await deductCommentReplyCredit(user.userId, comment.brandId);
+    // Deduct credit (admin 不扣點)
+    const deducted = await deductCommentReplyCredit(user.userId, comment.brandId, user.role);
     if (!deducted) {
       return NextResponse.json({ error: "點數不足" }, { status: 403 });
     }
