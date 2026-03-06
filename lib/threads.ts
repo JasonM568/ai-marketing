@@ -110,6 +110,68 @@ export async function getThreadsProfile(
   return { id: data.id, username: data.username || "" };
 }
 
+// ===== Fetch Threads Replies (API polling) =====
+
+export interface ThreadsFetchedReply {
+  id: string;
+  text?: string;
+  username?: string;
+  timestamp?: string;
+  replied_to?: { id: string };
+}
+
+/**
+ * Fetch replies (comments) on a Threads media post
+ * GET /{media-id}/replies?fields=id,text,username,timestamp
+ */
+export async function getThreadsMediaReplies(
+  mediaId: string,
+  token: string,
+  limit: number = 50
+): Promise<ThreadsFetchedReply[]> {
+  const params = new URLSearchParams({
+    fields: "id,text,username,timestamp",
+    limit: String(limit),
+    access_token: token,
+  });
+
+  const res = await fetch(`${THREADS_GRAPH_API}/${mediaId}/replies?${params.toString()}`);
+  if (!res.ok) {
+    const err = await res.text();
+    // Threads may return 400 for posts with no replies — don't throw
+    if (res.status === 400) {
+      console.warn(`Threads replies fetch 400 for ${mediaId}: ${err}`);
+      return [];
+    }
+    throw new Error(`Threads fetch replies failed: ${err}`);
+  }
+  const data = await res.json();
+  return data.data || [];
+}
+
+/**
+ * Fetch recent threads (posts) from the user (for "all" monitor mode)
+ * GET /me/threads?fields=id,text,timestamp
+ */
+export async function getThreadsUserPosts(
+  token: string,
+  limit: number = 10
+): Promise<{ id: string; text?: string; timestamp?: string }[]> {
+  const params = new URLSearchParams({
+    fields: "id,text,timestamp",
+    limit: String(limit),
+    access_token: token,
+  });
+
+  const res = await fetch(`${THREADS_GRAPH_API}/me/threads?${params.toString()}`);
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Threads fetch user posts failed: ${err}`);
+  }
+  const data = await res.json();
+  return data.data || [];
+}
+
 // ===== Threads Comment Reply =====
 
 export async function replyToThreadsComment(

@@ -71,10 +71,11 @@ export async function PATCH(
           );
         } catch (err) {
           const errMsg = err instanceof Error ? err.message : "發送失敗";
-          // Update suggestion status to error
+          // Update suggestion — keep as pending so user can retry
+          // (Don't mark as error since the AI text is still usable)
           await db
             .update(replySuggestions)
-            .set({ status: "pending", reviewedBy: user.userId, reviewedAt: new Date() })
+            .set({ reviewedBy: user.userId, reviewedAt: new Date() })
             .where(eq(replySuggestions.id, id));
 
           return NextResponse.json({ error: `發送回覆失敗: ${errMsg}` }, { status: 500 });

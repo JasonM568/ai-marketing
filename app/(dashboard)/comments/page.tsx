@@ -38,6 +38,7 @@ export default function CommentsPage() {
   const [editingReplyId, setEditingReplyId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   // Stats
   const pendingCount = comments.filter(
@@ -155,6 +156,35 @@ export default function CommentsPage() {
     }
   }
 
+  async function handleSyncComments() {
+    if (!selectedBrand) return;
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/comments/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandId: selectedBrand }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        alert(data.error);
+      } else {
+        const msg = data.message || `同步完成：${data.synced} 則新留言`;
+        const errMsg = data.errors?.length
+          ? `\n\n⚠️ 部分錯誤：\n${data.errors.join("\n")}`
+          : "";
+        alert(msg + errMsg);
+        if (data.synced > 0) {
+          fetchComments();
+        }
+      }
+    } catch {
+      alert("同步留言失敗，請重試");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   const platformLabel = (p: string) => {
     switch (p) {
       case "facebook": return "FB";
@@ -245,6 +275,14 @@ export default function CommentsPage() {
       {/* Actions bar */}
       <div className="flex items-center gap-3 flex-wrap">
         <button
+          onClick={handleSyncComments}
+          disabled={syncing}
+          className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-sm font-medium transition-colors"
+        >
+          {syncing ? "⏳ 同步中..." : "🔄 同步留言"}
+        </button>
+
+        <button
           onClick={handleBatchProcess}
           disabled={processing || newCount === 0}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-sm font-medium transition-colors"
@@ -276,9 +314,16 @@ export default function CommentsPage() {
         <div className="text-center py-12 bg-gray-900 rounded-xl border border-white/10">
           <p className="text-4xl mb-3">💬</p>
           <p className="text-gray-400">尚無留言</p>
-          <p className="text-gray-600 text-sm mt-1">
-            設定監控後，收到的留言會出現在這裡
+          <p className="text-gray-600 text-sm mt-1 mb-4">
+            設定監控後，點擊「🔄 同步留言」從社群平台抓取留言
           </p>
+          <button
+            onClick={handleSyncComments}
+            disabled={syncing}
+            className="px-5 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-sm font-medium transition-colors"
+          >
+            {syncing ? "⏳ 同步中..." : "🔄 立即同步留言"}
+          </button>
         </div>
       ) : (
         <div className="space-y-3">

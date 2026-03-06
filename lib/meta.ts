@@ -278,6 +278,121 @@ export async function postToThreads(
   return published.id;
 }
 
+// ===== Fetch Comments (Graph API polling) =====
+
+export interface FetchedComment {
+  id: string;
+  message: string;
+  from?: { id: string; name: string };
+  created_time?: string;
+  parent?: { id: string };
+}
+
+/**
+ * Fetch comments on a Facebook Page post
+ * GET /{post-id}/comments?fields=id,message,from,created_time,parent
+ */
+export async function getFacebookPostComments(
+  postId: string,
+  pageToken: string,
+  limit: number = 50
+): Promise<FetchedComment[]> {
+  const params = new URLSearchParams({
+    fields: "id,message,from,created_time,parent",
+    limit: String(limit),
+    access_token: pageToken,
+  });
+
+  const res = await fetch(`${META_GRAPH_API}/${postId}/comments?${params.toString()}`);
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`FB fetch comments failed: ${err}`);
+  }
+  const data = await res.json();
+  return data.data || [];
+}
+
+/**
+ * Fetch all recent posts from a Facebook Page (for "all" monitor mode)
+ * GET /{page-id}/feed?fields=id,message,created_time
+ */
+export async function getFacebookPagePosts(
+  pageId: string,
+  pageToken: string,
+  limit: number = 10
+): Promise<{ id: string; message?: string; created_time?: string }[]> {
+  const params = new URLSearchParams({
+    fields: "id,message,created_time",
+    limit: String(limit),
+    access_token: pageToken,
+  });
+
+  const res = await fetch(`${META_GRAPH_API}/${pageId}/feed?${params.toString()}`);
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`FB fetch page posts failed: ${err}`);
+  }
+  const data = await res.json();
+  return data.data || [];
+}
+
+export interface IGFetchedComment {
+  id: string;
+  text: string;
+  username?: string;
+  from?: { id: string };
+  timestamp?: string;
+  parent_id?: string;
+}
+
+/**
+ * Fetch comments on an Instagram media
+ * GET /{media-id}/comments?fields=id,text,username,from,timestamp
+ */
+export async function getInstagramMediaComments(
+  mediaId: string,
+  token: string,
+  limit: number = 50
+): Promise<IGFetchedComment[]> {
+  const params = new URLSearchParams({
+    fields: "id,text,username,from,timestamp",
+    limit: String(limit),
+    access_token: token,
+  });
+
+  const res = await fetch(`${META_GRAPH_API}/${mediaId}/comments?${params.toString()}`);
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`IG fetch comments failed: ${err}`);
+  }
+  const data = await res.json();
+  return data.data || [];
+}
+
+/**
+ * Fetch recent media from an Instagram business account (for "all" monitor mode)
+ * GET /{ig-user-id}/media?fields=id,caption,timestamp
+ */
+export async function getInstagramUserMedia(
+  igUserId: string,
+  token: string,
+  limit: number = 10
+): Promise<{ id: string; caption?: string; timestamp?: string }[]> {
+  const params = new URLSearchParams({
+    fields: "id,caption,timestamp",
+    limit: String(limit),
+    access_token: token,
+  });
+
+  const res = await fetch(`${META_GRAPH_API}/${igUserId}/media?${params.toString()}`);
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`IG fetch media failed: ${err}`);
+  }
+  const data = await res.json();
+  return data.data || [];
+}
+
 // ===== Comment Replies =====
 
 export async function replyToFacebookComment(
