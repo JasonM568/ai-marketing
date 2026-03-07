@@ -111,7 +111,7 @@ export async function POST(
 
     // Upload to Supabase Storage
     const { supabase } = await import("@/lib/supabase");
-    const storagePath = `${id}/${crypto.randomUUID()}-${file.name}`;
+    const storagePath = `${id}/${crypto.randomUUID()}.${ext}`;
 
     const { error: uploadError } = await supabase.storage
       .from("brand-files")
