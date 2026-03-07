@@ -162,7 +162,9 @@ export const socialAccounts = pgTable("social_accounts", {
   status: varchar("status", { length: 20 }).default("active").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  brandPlatformUnique: uniqueIndex("social_accounts_brand_id_platform_key").on(table.brandId, table.platform),
+}));
 
 export const scheduledPosts = pgTable("scheduled_posts", {
   id: uuid("id").defaultRandom().primaryKey(),

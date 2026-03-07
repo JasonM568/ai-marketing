@@ -8,6 +8,9 @@ import { encrypt } from "@/lib/crypto";
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || "fallback-secret-change-me");
 
 export async function GET(request: NextRequest) {
+  // Parse brandId early so error redirects go to the correct page
+  let brandId: string | null = null;
+
   try {
     const code = request.nextUrl.searchParams.get("code");
     const state = request.nextUrl.searchParams.get("state");
@@ -23,7 +26,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify state JWT
-    let brandId: string;
     let userId: string;
     try {
       const { payload } = await jwtVerify(state, secret);
@@ -33,50 +35,87 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/brands?error=invalid_state", request.url));
     }
 
-    // Exchange code for short-lived token
-    const shortToken = await exchangeThreadsCode(code);
+    // Step 1: Exchange code for short-lived token
+    let shortToken: string;
+    try {
+      shortToken = await exchangeThreadsCode(code);
+    } catch (err) {
+      console.error("Threads token exchange failed:", err);
+      return NextResponse.redirect(
+        new URL(`/brands/${brandId}/social?error=token_exchange_failed`, request.url)
+      );
+    }
 
-    // Exchange for long-lived token (60 days)
-    const { token: longToken, expiresIn } = await getThreadsLongLivedToken(shortToken);
-    const tokenExpiresAt = new Date(Date.now() + expiresIn * 1000);
+    // Step 2: Exchange for long-lived token (60 days)
+    let longToken: string;
+    let tokenExpiresAt: Date;
+    try {
+      const result = await getThreadsLongLivedToken(shortToken);
+      longToken = result.token;
+      tokenExpiresAt = new Date(Date.now() + result.expiresIn * 1000);
+    } catch (err) {
+      console.error("Threads long-lived token failed:", err);
+      return NextResponse.redirect(
+        new URL(`/brands/${brandId}/social?error=long_token_failed`, request.url)
+      );
+    }
 
-    // Get Threads profile
-    const profile = await getThreadsProfile(longToken);
+    // Step 3: Get Threads profile
+    let profile: { id: string; username: string };
+    try {
+      profile = await getThreadsProfile(longToken);
+    } catch (err) {
+      console.error("Threads profile fetch failed:", err);
+      return NextResponse.redirect(
+        new URL(`/brands/${brandId}/social?error=profile_fetch_failed`, request.url)
+      );
+    }
 
-    // Save Threads account
-    await db
-      .insert(socialAccounts)
-      .values({
-        brandId,
-        platform: "threads",
-        platformUserId: profile.id,
-        platformUsername: profile.username,
-        pageId: null, // Threads doesn't use page IDs
-        accessToken: encrypt(longToken),
-        tokenExpiresAt,
-        scopes: "threads_basic,threads_content_publish,threads_read_replies,threads_manage_replies",
-        metaUserId: userId,
-        connectedBy: userId,
-        status: "active",
-      })
-      .onConflictDoUpdate({
-        target: [socialAccounts.brandId, socialAccounts.platform],
-        set: {
+    // Step 4: Save Threads account (upsert)
+    try {
+      await db
+        .insert(socialAccounts)
+        .values({
+          brandId,
+          platform: "threads",
           platformUserId: profile.id,
           platformUsername: profile.username,
+          pageId: null,
           accessToken: encrypt(longToken),
           tokenExpiresAt,
           scopes: "threads_basic,threads_content_publish,threads_read_replies,threads_manage_replies",
+          metaUserId: userId,
+          connectedBy: userId,
           status: "active",
-          updatedAt: new Date(),
-        },
-      });
+        })
+        .onConflictDoUpdate({
+          target: [socialAccounts.brandId, socialAccounts.platform],
+          set: {
+            platformUserId: profile.id,
+            platformUsername: profile.username,
+            accessToken: encrypt(longToken),
+            tokenExpiresAt,
+            scopes: "threads_basic,threads_content_publish,threads_read_replies,threads_manage_replies",
+            status: "active",
+            updatedAt: new Date(),
+          },
+        });
+    } catch (err) {
+      console.error("Threads DB save failed:", err);
+      return NextResponse.redirect(
+        new URL(`/brands/${brandId}/social?error=db_save_failed`, request.url)
+      );
+    }
 
+    console.log(`Threads connected: brand=${brandId}, user=${profile.username}`);
     return NextResponse.redirect(
       new URL(`/brands/${brandId}/social?success=threads_connected`, request.url)
     );
   } catch (error) {
-    console.error("Threads callback error:", error);
-    return NextResponse.redirect(new URL("/brands?error=threads_callback_failed", request.url));
+    console.error("Threads callback unexpected error:", error);
+    const errorUrl = brandId
+      ? `/brands/${brandId}/social?error=threads_callback_failed`
+      : "/brands?error=threads_callback_failed";
+    return NextResponse.redirect(new URL(errorUrl, request.url));
   }
 }

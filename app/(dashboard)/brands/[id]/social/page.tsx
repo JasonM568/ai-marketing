@@ -105,7 +105,16 @@ export default function BrandSocialPage() {
       )}
       {error && (
         <div className="mb-4 px-4 py-3 bg-red-900/30 border border-red-700/50 rounded-xl text-red-300 text-sm">
-          ❌ 連結失敗：{error === "oauth_denied" || error === "threads_oauth_denied" ? "您拒絕了授權" : error === "no_pages" ? "找不到管理的粉專" : error === "threads_callback_failed" ? "Threads 連結發生錯誤" : "發生錯誤"}
+          ❌ 連結失敗：{
+            error === "oauth_denied" || error === "threads_oauth_denied" ? "您拒絕了授權"
+            : error === "no_pages" ? "找不到管理的粉專"
+            : error === "token_exchange_failed" ? "Threads Token 交換失敗，請重新嘗試連結"
+            : error === "long_token_failed" ? "Threads 長效 Token 取得失敗，請重新嘗試"
+            : error === "profile_fetch_failed" ? "無法取得 Threads 個人資料，請確認帳號權限"
+            : error === "db_save_failed" ? "帳號資料儲存失敗，請聯繫管理員"
+            : error === "threads_callback_failed" ? "Threads 連結發生錯誤"
+            : `發生錯誤 (${error})`
+          }
         </div>
       )}
 
