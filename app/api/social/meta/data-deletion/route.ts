@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     const confirmationCode = crypto.randomBytes(16).toString("hex");
 
     // Meta expects a JSON response with a URL and confirmation code
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.huibang.ai";
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://ai-marketing.huibang.com.tw";
 
     return NextResponse.json({
       url: `${baseUrl}/data-deletion?code=${confirmationCode}`,
