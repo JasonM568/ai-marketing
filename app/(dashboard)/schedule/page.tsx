@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { AnimatePresence } from "framer-motion";
+import ViewToggle from "@/components/schedule/ViewToggle";
+import ScheduleCalendar from "@/components/schedule/ScheduleCalendar";
+import DayDetailPanel from "@/components/schedule/DayDetailPanel";
 
 interface ScheduledPost {
   id: string;
@@ -39,6 +43,10 @@ const statusConfig: Record<string, { label: string; color: string }> = {
   cancelled: { label: "已取消", color: "bg-gray-700/50 text-gray-500 line-through" },
 };
 
+function toLocalDateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 export default function SchedulePage() {
   const searchParams = useSearchParams();
   const [posts, setPosts] = useState<ScheduledPost[]>([]);
@@ -47,7 +55,22 @@ export default function SchedulePage() {
   const [filterBrand, setFilterBrand] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
 
+  // Calendar view state
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
   const success = searchParams.get("success");
+
+  // Restore view preference from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("schedule-view-mode");
+    if (saved === "calendar" || saved === "list") setViewMode(saved);
+  }, []);
+
+  // Persist view preference
+  useEffect(() => {
+    localStorage.setItem("schedule-view-mode", viewMode);
+  }, [viewMode]);
 
   useEffect(() => {
     fetch("/api/brands", { credentials: "include" })
@@ -88,6 +111,13 @@ export default function SchedulePage() {
     return text.slice(0, maxLen) + "...";
   }
 
+  // Get posts for the selected day
+  const selectedDayPosts = useMemo(() => {
+    if (!selectedDate) return [];
+    const key = toLocalDateKey(selectedDate);
+    return posts.filter((p) => toLocalDateKey(new Date(p.scheduledAt)) === key);
+  }, [posts, selectedDate]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -96,12 +126,15 @@ export default function SchedulePage() {
           <h1 className="text-2xl font-bold text-white">排程發文</h1>
           <p className="text-gray-400 mt-1">管理所有排程貼文</p>
         </div>
-        <Link
-          href="/schedule/new"
-          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl transition-colors"
-        >
-          建立排程
-        </Link>
+        <div className="flex items-center gap-3">
+          <ViewToggle view={viewMode} onChange={setViewMode} />
+          <Link
+            href="/schedule/new"
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl transition-colors"
+          >
+            建立排程
+          </Link>
+        </div>
       </div>
 
       {/* Success message */}
@@ -151,68 +184,107 @@ export default function SchedulePage() {
         </select>
       </div>
 
-      {/* Post List */}
-      {loading ? (
-        <div className="flex items-center justify-center h-32">
-          <div className="text-gray-400">載入中...</div>
-        </div>
-      ) : posts.length === 0 ? (
-        <div className="text-center py-16 text-gray-500">
-          <p className="text-4xl mb-3">📅</p>
-          <p>尚無排程貼文</p>
-          <p className="text-sm mt-1">建立排程來自動發布內容到社群平台</p>
-          <Link
-            href="/schedule/new"
-            className="inline-block mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm transition-colors"
-          >
-            建立排程
-          </Link>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {posts.map((post) => {
-            const status = statusConfig[post.status] || statusConfig.pending;
-            return (
-              <Link
-                key={post.id}
-                href={`/schedule/${post.id}`}
-                className="block bg-gray-900 border border-gray-800 rounded-xl p-4 hover:bg-gray-800/50 transition-colors"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <span className="text-2xl flex-shrink-0 mt-0.5">
-                      {getPlatformIcon(post.platform)}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="px-1.5 py-0.5 text-xs rounded bg-gray-800 text-gray-400">
-                          {post.platform.toUpperCase()}
-                        </span>
-                        <span className={`px-2 py-0.5 text-xs rounded-full ${status.color}`}>
-                          {status.label}
-                        </span>
+      {/* Content Area */}
+      {viewMode === "list" ? (
+        /* ============ LIST VIEW ============ */
+        loading ? (
+          <div className="flex items-center justify-center h-32">
+            <div className="text-gray-400">載入中...</div>
+          </div>
+        ) : posts.length === 0 ? (
+          <div className="text-center py-16 text-gray-500">
+            <p className="text-4xl mb-3">📅</p>
+            <p>尚無排程貼文</p>
+            <p className="text-sm mt-1">建立排程來自動發布內容到社群平台</p>
+            <Link
+              href="/schedule/new"
+              className="inline-block mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm transition-colors"
+            >
+              建立排程
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {posts.map((post) => {
+              const status = statusConfig[post.status] || statusConfig.pending;
+              return (
+                <Link
+                  key={post.id}
+                  href={`/schedule/${post.id}`}
+                  className="block bg-gray-900 border border-gray-800 rounded-xl p-4 hover:bg-gray-800/50 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <span className="text-2xl flex-shrink-0 mt-0.5">
+                        {getPlatformIcon(post.platform)}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="px-1.5 py-0.5 text-xs rounded bg-gray-800 text-gray-400">
+                            {post.platform.toUpperCase()}
+                          </span>
+                          <span className={`px-2 py-0.5 text-xs rounded-full ${status.color}`}>
+                            {status.label}
+                          </span>
+                        </div>
+                        <p className="text-gray-300 text-sm">
+                          {truncate(post.content, 100)}
+                        </p>
                       </div>
-                      <p className="text-gray-300 text-sm">
-                        {truncate(post.content, 100)}
-                      </p>
+                    </div>
+                    <div className="flex-shrink-0 text-right">
+                      <div className="text-xs text-gray-500">排程時間</div>
+                      <div className="text-sm text-gray-300">
+                        {new Date(post.scheduledAt).toLocaleDateString("zh-TW", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex-shrink-0 text-right">
-                    <div className="text-xs text-gray-500">排程時間</div>
-                    <div className="text-sm text-gray-300">
-                      {new Date(post.scheduledAt).toLocaleDateString("zh-TW", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+                </Link>
+              );
+            })}
+          </div>
+        )
+      ) : (
+        /* ============ CALENDAR VIEW ============ */
+        loading ? (
+          /* Calendar skeleton */
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-6">
+            <div className="h-6 w-32 bg-gray-800 rounded mb-4 animate-pulse" />
+            <div className="grid grid-cols-7 gap-1 mb-1">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <div key={i} className="h-4 bg-gray-800/50 rounded animate-pulse" />
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: 35 }).map((_, i) => (
+                <div key={i} className="aspect-square bg-gray-800/30 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="relative">
+            <ScheduleCalendar
+              posts={posts}
+              onDaySelect={(date) => setSelectedDate(date)}
+              selectedDate={selectedDate}
+            />
+
+            <AnimatePresence>
+              {selectedDate && (
+                <DayDetailPanel
+                  date={selectedDate}
+                  posts={selectedDayPosts}
+                  onClose={() => setSelectedDate(null)}
+                />
+              )}
+            </AnimatePresence>
+          </div>
+        )
       )}
     </div>
   );

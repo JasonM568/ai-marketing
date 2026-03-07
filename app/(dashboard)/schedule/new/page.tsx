@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 interface Brand {
@@ -35,6 +35,8 @@ const platformIcons: Record<string, string> = {
 
 export default function NewSchedulePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const prefillDate = searchParams.get("date"); // from calendar view: ?date=YYYY-MM-DD
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -72,6 +74,20 @@ export default function NewSchedulePage() {
       })
       .catch(console.error);
   }, []);
+
+  // Prefill date from calendar view (?date=YYYY-MM-DD)
+  useEffect(() => {
+    if (prefillDate && !scheduledAt) {
+      // Parse date and set to 09:00 local time
+      const d = new Date(prefillDate + "T09:00");
+      if (!isNaN(d.getTime())) {
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const localStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        setScheduledAt(localStr);
+        setPublishMode("schedule");
+      }
+    }
+  }, [prefillDate]);
 
   // Load accounts when brand is selected
   useEffect(() => {
