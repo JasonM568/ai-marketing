@@ -101,6 +101,16 @@ export default function PricingPage() {
                   <p className="text-sm text-gray-400 mb-4">{plan.description}</p>
 
                   <div className="mb-6">
+                    {plan.originalPrice > plan.price && (
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm text-gray-500 line-through">
+                          NT${plan.originalPrice.toLocaleString()}
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-red-500/15 text-red-400 text-[10px] font-semibold rounded">
+                          省 ${(plan.originalPrice - plan.price).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
                     <span className="text-3xl font-bold text-white">NT${plan.price.toLocaleString()}</span>
                     <span className="text-gray-500 text-sm">/月</span>
                   </div>

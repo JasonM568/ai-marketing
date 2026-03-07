@@ -40,6 +40,10 @@ const TYPE_LABELS: Record<string, string> = {
   edm: "EDM 電子報",
   blog_seo: "部落格/SEO",
   strategy: "策略分析",
+  conversation: "開啟對話",
+  ad_analysis: "廣告分析",
+  ga_analysis: "GA 分析",
+  trend_analysis: "趨勢分析",
   followup: "對話追問",
 };
 
@@ -205,15 +209,18 @@ export default function MyPlanPage() {
       {/* Cost Table */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
         <h3 className="text-white font-medium mb-4">💡 扣點標準</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
           {[
-            { label: "社群貼文", cost: 1, desc: "IG/FB/Threads/LINE" },
-            { label: "短影音腳本", cost: 1, desc: "Reels" },
-            { label: "廣告文案", cost: 2, desc: "Meta/Google 廣告" },
-            { label: "EDM 電子報", cost: 3, desc: "歡迎信/促銷信" },
-            { label: "部落格/SEO", cost: 4, desc: "長文章" },
-            { label: "策略分析", cost: 5, desc: "品牌/趨勢分析" },
-            { label: "對話追問", cost: 1, desc: "微調/修改" },
+            { label: "社群貼文", cost: 3, desc: "IG/FB/Threads/LINE" },
+            { label: "短影音腳本", cost: 6, desc: "Reels/短影音" },
+            { label: "廣告文案", cost: 3, desc: "Meta/Google 廣告" },
+            { label: "EDM 電子報", cost: 6, desc: "歡迎信/促銷信" },
+            { label: "部落格/SEO 文案", cost: 9, desc: "SEO 長文章" },
+            { label: "策略分析", cost: 12, desc: "品牌策略分析" },
+            { label: "開啟對話", cost: 2, desc: "2 點起" },
+            { label: "廣告分析", cost: 12, desc: "廣告成效分析" },
+            { label: "GA 分析", cost: 12, desc: "Google Analytics" },
+            { label: "趨勢分析", cost: 12, desc: "市場趨勢分析" },
           ].map((c) => (
             <div key={c.label} className="bg-white/5 rounded-xl p-3 text-center">
               <p className="text-xl font-bold text-blue-400">{c.cost} 點</p>

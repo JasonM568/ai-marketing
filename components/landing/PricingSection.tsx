@@ -64,6 +64,16 @@ export default function PricingSection() {
 
                   {/* Price */}
                   <div className="mb-6">
+                    {plan.originalPrice > plan.price && (
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm text-gray-500 line-through">
+                          NT${plan.originalPrice.toLocaleString()}
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-red-500/15 text-red-400 text-[10px] font-semibold rounded">
+                          省 ${(plan.originalPrice - plan.price).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-baseline gap-1">
                       <span className="text-sm text-gray-400">NT$</span>
                       <span className="text-4xl font-bold text-white">
@@ -165,9 +175,9 @@ export default function PricingSection() {
                           </div>
                           <span
                             className={`flex-shrink-0 ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                              item.credits <= 1
+                              item.credits <= 3
                                 ? "bg-green-500/15 text-green-400"
-                                : item.credits <= 3
+                                : item.credits <= 6
                                 ? "bg-amber-500/15 text-amber-400"
                                 : "bg-purple-500/15 text-purple-400"
                             }`}
