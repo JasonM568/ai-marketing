@@ -1,5 +1,7 @@
 // Threads API uses graph.threads.net, NOT graph.facebook.com
+// Data endpoints use /v1.0/ prefix, but token endpoints do NOT
 const THREADS_GRAPH_API = "https://graph.threads.net/v1.0";
+const THREADS_TOKEN_API = "https://graph.threads.net";
 const THREADS_OAUTH_URL = "https://www.threads.net/oauth/authorize";
 
 interface TokenResult {
@@ -47,7 +49,8 @@ export async function exchangeThreadsCode(code: string): Promise<string> {
     code,
   });
 
-  const res = await fetch(`${THREADS_GRAPH_API}/oauth/access_token`, {
+  // Short-lived token exchange uses the TOKEN API (no /v1.0/ prefix)
+  const res = await fetch(`${THREADS_TOKEN_API}/oauth/access_token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: params.toString(),
@@ -71,10 +74,11 @@ export async function getThreadsLongLivedToken(shortToken: string): Promise<Toke
     access_token: shortToken,
   });
 
-  const res = await fetch(`${THREADS_GRAPH_API}/access_token?${params.toString()}`);
+  // Long-lived token exchange does NOT use /v1.0/ prefix per Meta docs
+  const res = await fetch(`${THREADS_TOKEN_API}/access_token?${params.toString()}`);
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Threads long-lived token failed: ${err}`);
+    throw new Error(`Threads long-lived token failed (${res.status}): ${err}`);
   }
   const data = await res.json();
   return { token: data.access_token, expiresIn: data.expires_in || 5184000 };
@@ -86,10 +90,11 @@ export async function refreshThreadsToken(token: string): Promise<TokenResult> {
     access_token: token,
   });
 
-  const res = await fetch(`${THREADS_GRAPH_API}/refresh_access_token?${params.toString()}`);
+  // Token refresh does NOT use /v1.0/ prefix per Meta docs
+  const res = await fetch(`${THREADS_TOKEN_API}/refresh_access_token?${params.toString()}`);
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Threads token refresh failed: ${err}`);
+    throw new Error(`Threads token refresh failed (${res.status}): ${err}`);
   }
   const data = await res.json();
   return { token: data.access_token, expiresIn: data.expires_in || 5184000 };

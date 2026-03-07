@@ -40,9 +40,11 @@ export async function GET(request: NextRequest) {
     try {
       shortToken = await exchangeThreadsCode(code);
     } catch (err) {
-      console.error("Threads token exchange failed:", err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error("Threads token exchange failed:", errMsg);
+      const detail = encodeURIComponent(errMsg.slice(0, 200));
       return NextResponse.redirect(
-        new URL(`/brands/${brandId}/social?error=token_exchange_failed`, request.url)
+        new URL(`/brands/${brandId}/social?error=token_exchange_failed&detail=${detail}`, request.url)
       );
     }
 
@@ -54,9 +56,12 @@ export async function GET(request: NextRequest) {
       longToken = result.token;
       tokenExpiresAt = new Date(Date.now() + result.expiresIn * 1000);
     } catch (err) {
-      console.error("Threads long-lived token failed:", err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error("Threads long-lived token failed:", errMsg);
+      // Include truncated error detail for debugging
+      const detail = encodeURIComponent(errMsg.slice(0, 200));
       return NextResponse.redirect(
-        new URL(`/brands/${brandId}/social?error=long_token_failed`, request.url)
+        new URL(`/brands/${brandId}/social?error=long_token_failed&detail=${detail}`, request.url)
       );
     }
 
@@ -65,9 +70,11 @@ export async function GET(request: NextRequest) {
     try {
       profile = await getThreadsProfile(longToken);
     } catch (err) {
-      console.error("Threads profile fetch failed:", err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error("Threads profile fetch failed:", errMsg);
+      const detail = encodeURIComponent(errMsg.slice(0, 200));
       return NextResponse.redirect(
-        new URL(`/brands/${brandId}/social?error=profile_fetch_failed`, request.url)
+        new URL(`/brands/${brandId}/social?error=profile_fetch_failed&detail=${detail}`, request.url)
       );
     }
 
