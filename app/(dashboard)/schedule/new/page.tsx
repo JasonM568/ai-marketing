@@ -219,6 +219,12 @@ export default function NewSchedulePage() {
     setDragActive(false);
   }
 
+  // Check if Instagram is selected but no image provided
+  const hasInstagramWithoutImage =
+    selectedAccounts.some(
+      (a) => a.platform.toLowerCase() === "instagram" || a.platform.toLowerCase() === "ig"
+    ) && !imageUrl;
+
   function canProceed() {
     switch (step) {
       case 1:
@@ -226,7 +232,7 @@ export default function NewSchedulePage() {
       case 2:
         return content.trim().length > 0;
       case 3:
-        return selectedAccounts.length > 0;
+        return selectedAccounts.length > 0 && !hasInstagramWithoutImage;
       case 4:
         if (publishMode === "now") return true;
         return !!scheduledAt && new Date(scheduledAt) > new Date();
@@ -465,7 +471,14 @@ export default function NewSchedulePage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                  圖片（可選）
+                  圖片
+                  {accounts.some(
+                    (a) => a.platform.toLowerCase() === "instagram" || a.platform.toLowerCase() === "ig"
+                  ) ? (
+                    <span className="text-yellow-400 text-xs ml-1.5">（Instagram 必須附圖）</span>
+                  ) : (
+                    <span className="text-gray-600 text-xs ml-1.5">（可選）</span>
+                  )}
                 </label>
 
                 {imageUrl ? (
@@ -617,6 +630,19 @@ export default function NewSchedulePage() {
                 <p className="text-xs text-blue-400 mt-3">
                   已選擇 {selectedAccounts.length} 個平台，將同時建立 {selectedAccounts.length} 筆排程
                 </p>
+              )}
+
+              {/* Instagram requires image warning */}
+              {hasInstagramWithoutImage && (
+                <div className="mt-3 px-4 py-3 bg-yellow-900/20 border border-yellow-700/30 rounded-xl text-sm text-yellow-300 flex items-start gap-2">
+                  <span className="text-base flex-shrink-0">⚠️</span>
+                  <div>
+                    <p className="font-medium">Instagram 貼文必須附帶圖片</p>
+                    <p className="text-yellow-400/70 text-xs mt-0.5">
+                      請返回上一步（步驟 2）上傳圖片，才能發布到 Instagram
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -812,7 +838,7 @@ export default function NewSchedulePage() {
                     {selectedAccounts.length} 個平台
                   </span>
                 </div>
-                {imageUrl && (
+                {imageUrl ? (
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">圖片</span>
@@ -824,7 +850,12 @@ export default function NewSchedulePage() {
                       className="w-full max-h-48 object-contain rounded-lg border border-gray-800"
                     />
                   </div>
-                )}
+                ) : hasInstagramWithoutImage ? (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">圖片</span>
+                    <span className="text-red-400 text-xs">❌ Instagram 需要圖片</span>
+                  </div>
+                ) : null}
                 <div className="border-t border-gray-800 pt-3">
                   <span className="text-gray-500 text-sm">內容預覽</span>
                   <p className="text-gray-300 text-sm mt-1 whitespace-pre-wrap">

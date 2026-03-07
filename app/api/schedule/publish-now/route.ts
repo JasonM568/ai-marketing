@@ -38,6 +38,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "社群帳號不存在或已停用" }, { status: 400 });
     }
 
+    // Instagram requires an image
+    const platformLower = platform.toLowerCase();
+    if ((platformLower === "instagram" || platformLower === "ig") && !imageUrl) {
+      return NextResponse.json(
+        { error: "Instagram 貼文必須附帶圖片" },
+        { status: 400 }
+      );
+    }
+
     // Create record with status "posting"
     const now = new Date();
     const [post] = await db
@@ -66,7 +75,6 @@ export async function POST(request: NextRequest) {
     // Publish immediately
     try {
       let publishedPostId: string;
-      const platformLower = platform.toLowerCase();
 
       if (platformLower === "facebook" || platformLower === "fb") {
         if (!account.pageId) throw new Error("Facebook page ID not found");

@@ -89,6 +89,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "社群帳號不存在或已停用" }, { status: 400 });
     }
 
+    // Instagram requires an image
+    const platformLower = platform.toLowerCase();
+    if ((platformLower === "instagram" || platformLower === "ig") && !imageUrl) {
+      return NextResponse.json(
+        { error: "Instagram 貼文必須附帶圖片" },
+        { status: 400 }
+      );
+    }
+
     // Verify scheduled time is in the future
     if (new Date(scheduledAt) <= new Date()) {
       return NextResponse.json({ error: "排程時間必須在未來" }, { status: 400 });
