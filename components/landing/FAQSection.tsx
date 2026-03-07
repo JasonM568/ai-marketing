@@ -23,7 +23,7 @@ const faqs = [
   },
   {
     q: "未使用的點數會過期嗎？",
-    a: "點數可累積，但每月會依方案重新補充。建議定期使用以發揮最大效益。",
+    a: "點數可累積，最多保留兩個月的額度。建議定期使用以發揮最大效益。",
   },
   {
     q: "如何連結社群帳號？",
@@ -31,59 +31,143 @@ const faqs = [
   },
 ];
 
+function ChevronIcon({ isOpen }: { isOpen: boolean }) {
+  return (
+    <motion.div
+      animate={{ rotate: isOpen ? 180 : 0 }}
+      transition={{ duration: 0.3, ease: "easeInOut" }}
+      className="flex-shrink-0 text-gray-500 group-hover:text-white transition-colors"
+    >
+      <svg
+        className="w-5 h-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M19 9l-7 7-7-7"
+        />
+      </svg>
+    </motion.div>
+  );
+}
+
+function FAQItem({
+  faq,
+  index,
+  isOpen,
+  onToggle,
+}: {
+  faq: { q: string; a: string };
+  index: number;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="bg-gray-900/50 border border-white/10 rounded-xl overflow-hidden">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-6 py-5 text-left group"
+        aria-expanded={isOpen}
+        aria-controls={`faq-answer-${index}`}
+      >
+        <span className="text-sm sm:text-base font-medium text-white pr-4">
+          {faq.q}
+        </span>
+        <ChevronIcon isOpen={isOpen} />
+      </button>
+
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            id={`faq-answer-${index}`}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <p className="px-6 pb-5 text-sm text-gray-400 leading-relaxed">
+              {faq.a}
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function FAQSection() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
+  const leftColumn = faqs.filter((_, i) => i % 2 === 0);
+  const rightColumn = faqs.filter((_, i) => i % 2 === 1);
+
+  const handleToggle = (index: number) => {
+    setOpenIndex(openIndex === index ? null : index);
+  };
+
   return (
     <section id="faq" className="py-20 lg:py-32 px-4">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <ScrollAnimationWrapper>
           <div className="text-center mb-14">
             <span className="inline-block px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-sm text-blue-400 mb-4">
-              常見問題
+              FAQ
             </span>
             <h2 className="text-3xl sm:text-4xl font-bold text-white">
-              您可能想知道的
+              常見問題
             </h2>
           </div>
         </ScrollAnimationWrapper>
 
-        <div className="space-y-3">
+        {/* Desktop: 2 columns */}
+        <div className="hidden md:grid md:grid-cols-2 gap-4">
+          <div className="space-y-4">
+            {leftColumn.map((faq, colIndex) => {
+              const globalIndex = colIndex * 2;
+              return (
+                <ScrollAnimationWrapper key={globalIndex} delay={colIndex * 0.05}>
+                  <FAQItem
+                    faq={faq}
+                    index={globalIndex}
+                    isOpen={openIndex === globalIndex}
+                    onToggle={() => handleToggle(globalIndex)}
+                  />
+                </ScrollAnimationWrapper>
+              );
+            })}
+          </div>
+          <div className="space-y-4">
+            {rightColumn.map((faq, colIndex) => {
+              const globalIndex = colIndex * 2 + 1;
+              return (
+                <ScrollAnimationWrapper key={globalIndex} delay={colIndex * 0.05 + 0.1}>
+                  <FAQItem
+                    faq={faq}
+                    index={globalIndex}
+                    isOpen={openIndex === globalIndex}
+                    onToggle={() => handleToggle(globalIndex)}
+                  />
+                </ScrollAnimationWrapper>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Mobile: 1 column */}
+        <div className="md:hidden space-y-3">
           {faqs.map((faq, i) => (
             <ScrollAnimationWrapper key={i} delay={i * 0.05}>
-              <div className="bg-gray-900/50 border border-white/10 rounded-xl overflow-hidden">
-                <button
-                  onClick={() => setOpenIndex(openIndex === i ? null : i)}
-                  className="w-full flex items-center justify-between px-6 py-5 text-left group"
-                >
-                  <span className="text-sm sm:text-base font-medium text-white pr-4">
-                    {faq.q}
-                  </span>
-                  <motion.span
-                    animate={{ rotate: openIndex === i ? 45 : 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="text-gray-500 group-hover:text-white text-xl flex-shrink-0"
-                  >
-                    +
-                  </motion.span>
-                </button>
-
-                <AnimatePresence>
-                  {openIndex === i && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3, ease: "easeInOut" }}
-                      className="overflow-hidden"
-                    >
-                      <p className="px-6 pb-5 text-sm text-gray-400 leading-relaxed">
-                        {faq.a}
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+              <FAQItem
+                faq={faq}
+                index={i}
+                isOpen={openIndex === i}
+                onToggle={() => handleToggle(i)}
+              />
             </ScrollAnimationWrapper>
           ))}
         </div>
