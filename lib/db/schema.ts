@@ -70,6 +70,7 @@ export const conversations = pgTable("conversations", {
   title: varchar("title", { length: 200 }),
   messages: jsonb("messages").default([]),
   status: varchar("status", { length: 20 }).default("active"),
+  followupCount: integer("followup_count").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

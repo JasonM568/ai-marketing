@@ -47,6 +47,8 @@ export default function WorkspacePage() {
   const [copied, setCopied] = useState<number | null>(null);
   const [csvData, setCsvData] = useState<string | null>(null);
   const [csvFileName, setCsvFileName] = useState<string | null>(null);
+  const [followupWarning, setFollowupWarning] = useState<string | null>(null);
+  const [freeFollowupsRemaining, setFreeFollowupsRemaining] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
@@ -90,6 +92,8 @@ export default function WorkspacePage() {
     setSelectedAgent(agent);
     setMessages([]);
     setConversationId(undefined);
+    setFollowupWarning(null);
+    setFreeFollowupsRemaining(null);
     setStep("chat");
   }
 
@@ -99,10 +103,14 @@ export default function WorkspacePage() {
       setSelectedAgent(null);
       setMessages([]);
       setConversationId(undefined);
+      setFollowupWarning(null);
+      setFreeFollowupsRemaining(null);
     } else if (target === "agent") {
       setSelectedAgent(null);
       setMessages([]);
       setConversationId(undefined);
+      setFollowupWarning(null);
+      setFreeFollowupsRemaining(null);
     }
     setStep(target);
   }
@@ -173,11 +181,22 @@ export default function WorkspacePage() {
               if (parsed.conversationId) {
                 setConversationId(parsed.conversationId);
               }
+              if (parsed.followupWarning) {
+                setFollowupWarning(parsed.followupWarning);
+              }
+              if (parsed.freeFollowup) {
+                setFreeFollowupsRemaining(parsed.freeFollowupsRemaining ?? 0);
+              }
               if (parsed.creditSummary) {
                 const cs = parsed.creditSummary;
-                const summaryText = cs.overageCost > 0
-                  ? `\n\n---\n💳 本次扣點：基礎 ${cs.baseCost} + 超量 ${cs.overageCost} = **${cs.totalCost} 點**（${cs.totalTokens.toLocaleString()} tokens，額度 ${cs.tokenAllowance.toLocaleString()}）｜剩餘 ${cs.remainingBalance} 點`
-                  : `\n\n---\n💳 本次扣點：**${cs.totalCost} 點**（${cs.totalTokens.toLocaleString()} tokens）｜剩餘 ${cs.remainingBalance} 點`;
+                let summaryText: string;
+                if (cs.isFreeFollowup) {
+                  summaryText = `\n\n---\n✨ 免費追問｜剩餘 ${cs.remainingBalance} 點`;
+                } else if (cs.overageCost > 0) {
+                  summaryText = `\n\n---\n💳 本次扣點：基礎 ${cs.baseCost} + 超量 ${cs.overageCost} = **${cs.totalCost} 點**（${cs.totalTokens.toLocaleString()} tokens，額度 ${cs.tokenAllowance.toLocaleString()}）｜剩餘 ${cs.remainingBalance} 點`;
+                } else {
+                  summaryText = `\n\n---\n💳 本次扣點：**${cs.totalCost} 點**（${cs.totalTokens.toLocaleString()} tokens）｜剩餘 ${cs.remainingBalance} 點`;
+                }
                 assistantContent += summaryText;
                 setMessages((prev) => {
                   const updated = [...prev];
@@ -536,6 +555,26 @@ export default function WorkspacePage() {
 
               <div ref={messagesEndRef} />
             </div>
+
+            {/* Followup warning banner */}
+            {followupWarning && (
+              <div className="flex-shrink-0 mx-1 mb-1 px-4 py-2.5 bg-amber-900/30 border border-amber-700/50 rounded-xl text-sm text-amber-300 flex items-center justify-between">
+                <span>⚠️ {followupWarning}</span>
+                <button
+                  onClick={() => setFollowupWarning(null)}
+                  className="text-amber-500 hover:text-amber-300 ml-3 text-xs flex-shrink-0"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* Free followup remaining indicator */}
+            {freeFollowupsRemaining !== null && freeFollowupsRemaining >= 0 && !followupWarning && conversationId && (
+              <div className="flex-shrink-0 mx-1 mb-1 px-4 py-1.5 text-xs text-gray-500 text-center">
+                ✨ 免費追問剩餘 {freeFollowupsRemaining} 次
+              </div>
+            )}
 
             {/* Input Area */}
             <div className="flex-shrink-0 px-1 pb-3 pt-2 border-t border-gray-800">

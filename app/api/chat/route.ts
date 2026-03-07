@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { getAuthUser, isSubscriber } from "@/lib/auth";
 import { canAccessBrand } from "@/lib/brand-access";
-import { getCreditsForAgent, getCreditsForFollowup, calculateOverageCost } from "@/lib/plans";
+import { getCreditsForAgent, getCreditsForFollowup, calculateOverageCost, shouldWarnFollowupCharge, FREE_FOLLOWUPS } from "@/lib/plans";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -68,14 +68,29 @@ export async function POST(request: NextRequest) {
     let baseCost = 0;
     let contentType = "social_post";
     let tokenAllowance = 3000;
+    let isFollowupFree = false;
+    let followupWarning = false;
+    let currentFollowupCount = 0;
     const isSubUser = isSubscriber(user);
 
     if (isSubUser) {
       if (conversationId) {
-        const result = getCreditsForFollowup();
+        // Fetch current followup count from conversation
+        const [conv] = await db
+          .select({ followupCount: conversations.followupCount })
+          .from(conversations)
+          .where(eq(conversations.id, conversationId))
+          .limit(1);
+        currentFollowupCount = conv?.followupCount || 0;
+
+        const result = getCreditsForFollowup(currentFollowupCount);
         baseCost = result.credits;
         contentType = result.contentType;
         tokenAllowance = result.tokenAllowance;
+        isFollowupFree = result.isFree;
+
+        // Check if we should warn user about upcoming charges
+        followupWarning = shouldWarnFollowupCharge(currentFollowupCount);
       } else if (agentData) {
         const result = getCreditsForAgent(agentData.agentCode, agentData.category);
         baseCost = result.credits;
@@ -87,30 +102,32 @@ export async function POST(request: NextRequest) {
         tokenAllowance = 3000;
       }
 
-      // Check balance (at least base cost)
-      const [credits] = await db
-        .select()
-        .from(userCredits)
-        .where(eq(userCredits.userId, user.userId))
-        .limit(1);
+      // Check balance (at least base cost) — skip check if free followup
+      if (baseCost > 0) {
+        const [credits] = await db
+          .select()
+          .from(userCredits)
+          .where(eq(userCredits.userId, user.userId))
+          .limit(1);
 
-      if (!credits || credits.balance < baseCost) {
-        return new Response(
-          JSON.stringify({
-            error: `點數不足：需要至少 ${baseCost} 點，目前剩餘 ${credits?.balance || 0} 點`,
-          }),
-          { status: 403, headers: { "Content-Type": "application/json" } }
-        );
+        if (!credits || credits.balance < baseCost) {
+          return new Response(
+            JSON.stringify({
+              error: `點數不足：需要至少 ${baseCost} 點，目前剩餘 ${credits?.balance || 0} 點`,
+            }),
+            { status: 403, headers: { "Content-Type": "application/json" } }
+          );
+        }
+
+        // Deduct base cost immediately
+        await db
+          .update(userCredits)
+          .set({
+            balance: sql`${userCredits.balance} - ${baseCost}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(userCredits.userId, user.userId));
       }
-
-      // Deduct base cost immediately
-      await db
-        .update(userCredits)
-        .set({
-          balance: sql`${userCredits.balance} - ${baseCost}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(userCredits.userId, user.userId));
     }
 
     // Build system prompt
@@ -157,9 +174,14 @@ export async function POST(request: NextRequest) {
     systemPrompt += `\n- 使用繁體中文`;
     systemPrompt += `\n- 提供可直接使用的完整內容`;
 
+    // Select model: Haiku for followups (cheaper), Sonnet for first generation
+    const modelId = conversationId
+      ? "claude-haiku-4-5-20251001"
+      : "claude-sonnet-4-20250514";
+
     // Call Claude API with streaming
     const stream = await anthropic.messages.stream({
-      model: "claude-sonnet-4-20250514",
+      model: modelId,
       max_tokens: 4096,
       system: systemPrompt,
       messages: messages.map((m: { role: string; content: string }) => ({
@@ -182,11 +204,25 @@ export async function POST(request: NextRequest) {
             title,
             messages: messages,
             status: "active",
+            followupCount: 0,
           })
           .returning();
         activeConversationId = newConv.id;
       } catch (err) {
         console.error("Save conversation error:", err);
+      }
+    } else {
+      // Increment followup count for existing conversation
+      try {
+        await db
+          .update(conversations)
+          .set({
+            followupCount: sql`${conversations.followupCount} + 1`,
+            updatedAt: new Date(),
+          })
+          .where(eq(conversations.id, conversationId));
+      } catch (err) {
+        console.error("Update followup count error:", err);
       }
     }
 
@@ -196,10 +232,20 @@ export async function POST(request: NextRequest) {
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          // Send conversationId to frontend
+          // Send conversationId + followup warning to frontend
           const metaData: Record<string, unknown> = {};
           if (activeConversationId) metaData.conversationId = activeConversationId;
           if (isSubUser) metaData.creditsUsed = baseCost;
+
+          // Send followup warning when free quota is exhausted
+          if (followupWarning) {
+            metaData.followupWarning = `本次對話的 ${FREE_FOLLOWUPS} 次免費追問已用完，接下來每次追問將消耗 1 點`;
+          }
+          // Send free followup remaining info
+          if (isFollowupFree && conversationId) {
+            metaData.freeFollowup = true;
+            metaData.freeFollowupsRemaining = FREE_FOLLOWUPS - currentFollowupCount - 1;
+          }
 
           if (Object.keys(metaData).length > 0) {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(metaData)}\n\n`));
@@ -225,7 +271,8 @@ export async function POST(request: NextRequest) {
           // ===== Subscriber: calculate overage + log =====
           if (isSubUser) {
             try {
-              const overageCost = calculateOverageCost(totalTokens, tokenAllowance);
+              // Free followups: no overage charge
+              const overageCost = isFollowupFree ? 0 : calculateOverageCost(totalTokens, tokenAllowance);
               const totalCost = baseCost + overageCost;
 
               // Deduct overage if any
@@ -247,6 +294,10 @@ export async function POST(request: NextRequest) {
                 .limit(1);
 
               // Log usage with actual token counts
+              const usageDesc = isFollowupFree
+                ? `${agentData?.name || "AI 助手"}（免費追問 ${currentFollowupCount + 1}/${FREE_FOLLOWUPS}）`
+                : `${agentData?.name || "AI 助手"}（${totalTokens.toLocaleString()} tokens${overageCost > 0 ? `，超量 +${overageCost} 點` : ""}）`;
+
               await db.insert(creditUsage).values({
                 userId: user.userId,
                 agentId: agentId || null,
@@ -256,17 +307,19 @@ export async function POST(request: NextRequest) {
                 contentType,
                 inputTokens,
                 outputTokens,
-                description: `${agentData?.name || "AI 助手"}（${totalTokens.toLocaleString()} tokens${overageCost > 0 ? `，超量 +${overageCost} 點` : ""}）`,
+                description: usageDesc,
               });
 
-              // Log transaction
-              await db.insert(creditTransactions).values({
-                userId: user.userId,
-                type: "usage",
-                amount: -totalCost,
-                balanceAfter: finalCredits?.balance || 0,
-                description: `${agentData?.name || "AI 助手"}（基礎 ${baseCost}${overageCost > 0 ? ` + 超量 ${overageCost}` : ""} 點，${totalTokens.toLocaleString()} tokens）`,
-              });
+              // Log transaction (only if credits were actually spent)
+              if (totalCost > 0) {
+                await db.insert(creditTransactions).values({
+                  userId: user.userId,
+                  type: "usage",
+                  amount: -totalCost,
+                  balanceAfter: finalCredits?.balance || 0,
+                  description: `${agentData?.name || "AI 助手"}（基礎 ${baseCost}${overageCost > 0 ? ` + 超量 ${overageCost}` : ""} 點，${totalTokens.toLocaleString()} tokens）`,
+                });
+              }
 
               // Send final credit summary to frontend
               const creditInfo = JSON.stringify({
@@ -277,6 +330,7 @@ export async function POST(request: NextRequest) {
                   totalTokens,
                   tokenAllowance,
                   remainingBalance: finalCredits?.balance || 0,
+                  isFreeFollowup: isFollowupFree,
                 },
               });
               controller.enqueue(encoder.encode(`data: ${creditInfo}\n\n`));

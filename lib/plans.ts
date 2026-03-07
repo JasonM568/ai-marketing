@@ -27,6 +27,7 @@ export const PLANS: Record<string, SubscriptionPlan> = {
     features: [
       "每月 30 點數",
       "每月可產出 10 篇貼文",
+      "每次對話含 5 次免費追問",
       "管理 1 個品牌",
       "指定貼文留言監控",
       "點數可累積（最多 2 個月）",
@@ -45,6 +46,7 @@ export const PLANS: Record<string, SubscriptionPlan> = {
     features: [
       "每月 80 點數",
       "每月可產出 25 篇貼文",
+      "每次對話含 5 次免費追問",
       "管理 2 個品牌",
       "指定貼文留言監控",
       "點數可累積（最多 2 個月）",
@@ -63,6 +65,7 @@ export const PLANS: Record<string, SubscriptionPlan> = {
     features: [
       "每月 180 點數",
       "每月可產出 35 篇貼文",
+      "每次對話含 5 次免費追問",
       "5 份深度分析報告",
       "管理 5 個品牌",
       "所有貼文留言監控",
@@ -87,7 +90,8 @@ export const CONTENT_COSTS: ContentCost[] = [
   { type: "edm", label: "EDM 電子報", credits: 6, description: "歡迎信 / 促銷信 / 再行銷" },
   { type: "blog_seo", label: "部落格 / SEO 文案", credits: 9, description: "SEO 長文章" },
   { type: "strategy", label: "策略分析", credits: 12, description: "品牌策略分析" },
-  { type: "conversation", label: "開啟對話", credits: 2, description: "2 點起" },
+  { type: "followup_free", label: "追問修改", credits: 0, description: "每次對話含 5 次免費" },
+  { type: "followup_paid", label: "追問（第 6 次起）", credits: 1, description: "每次 1 點" },
   { type: "ad_analysis", label: "廣告分析", credits: 12, description: "廣告成效分析" },
   { type: "ga_analysis", label: "GA 分析", credits: 12, description: "Google Analytics 分析" },
   { type: "trend_analysis", label: "趨勢分析", credits: 12, description: "市場趨勢分析" },
@@ -125,9 +129,27 @@ export function getCreditsForAgent(agentCode: string, category: string): { credi
   }
 }
 
-// 追問判斷：如果 conversationId 已存在，代表是追問（開啟對話 2 點起）
-export function getCreditsForFollowup(): { credits: number; contentType: string; tokenAllowance: number } {
-  return { credits: 2, contentType: "conversation", tokenAllowance: 4000 };
+// ===== 追問機制 =====
+
+// 每次對話包含的免費追問次數
+export const FREE_FOLLOWUPS = 5;
+// 免費追問後，每次追問扣 1 點
+export const PAID_FOLLOWUP_COST = 1;
+
+// 追問判斷：根據已追問次數決定是否免費
+export function getCreditsForFollowup(followupCount: number): { credits: number; contentType: string; tokenAllowance: number; isFree: boolean } {
+  const isFree = followupCount < FREE_FOLLOWUPS;
+  return {
+    credits: isFree ? 0 : PAID_FOLLOWUP_COST,
+    contentType: "conversation",
+    tokenAllowance: 4000,
+    isFree,
+  };
+}
+
+// 是否應顯示追問即將收費警告（在第 6 次追問時提醒）
+export function shouldWarnFollowupCharge(followupCount: number): boolean {
+  return followupCount === FREE_FOLLOWUPS;
 }
 
 // 計算超量扣點：每超過 1,000 tokens 扣 1 點
