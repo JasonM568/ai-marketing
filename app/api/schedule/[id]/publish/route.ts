@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
 import { decrypt } from "@/lib/crypto";
 import { postToFacebook, postToInstagram, postToThreads } from "@/lib/meta";
+import { canAccessBrand } from "@/lib/brand-access";
 
 // POST /api/schedule/[id]/publish — manually trigger immediate publish
 export async function POST(
@@ -22,6 +23,12 @@ export async function POST(
 
     if (!post) {
       return NextResponse.json({ error: "排程不存在" }, { status: 404 });
+    }
+
+    // Check brand access
+    const hasAccess = await canAccessBrand(user, post.brandId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "權限不足" }, { status: 403 });
     }
 
     // Only queued or failed posts can be manually published

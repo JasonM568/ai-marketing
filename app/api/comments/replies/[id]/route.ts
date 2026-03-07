@@ -4,6 +4,7 @@ import { replySuggestions, incomingComments, commentMonitors } from "@/lib/db/sc
 import { eq } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
 import { postReplyToPlatform } from "@/lib/comment-reply";
+import { canAccessBrand } from "@/lib/brand-access";
 
 // PATCH: Approve / Edit / Reject a reply suggestion
 export async function PATCH(
@@ -27,6 +28,12 @@ export async function PATCH(
 
     if (!suggestion) {
       return NextResponse.json({ error: "回覆建議不存在" }, { status: 404 });
+    }
+
+    // Check brand access via suggestion's brandId
+    const hasAccess = await canAccessBrand(user, suggestion.brandId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "權限不足" }, { status: 403 });
     }
 
     switch (action) {

@@ -2,17 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { adminUsers } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { getAuthUser, isAdmin } from "@/lib/auth";
+import { getAuthUser, isAdmin, isMaster, isAdminOrMaster } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
-// PUT /api/users/[id] — admin only, edit user
+// PUT /api/users/[id] — admin/master can edit. Master can only edit subscribers and cannot change role.
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getAuthUser();
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdminOrMaster(user)) {
       return NextResponse.json({ error: "權限不足" }, { status: 403 });
     }
 
@@ -20,15 +20,33 @@ export async function PUT(
     const body = await request.json();
     const { name, role, password } = body;
 
+    // Master: can only edit subscribers
+    if (isMaster(user)) {
+      const [targetUser] = await db
+        .select({ role: adminUsers.role })
+        .from(adminUsers)
+        .where(eq(adminUsers.id, id))
+        .limit(1);
+
+      if (!targetUser || targetUser.role !== "subscriber") {
+        return NextResponse.json({ error: "權限不足：Master 只能編輯 subscriber 帳號" }, { status: 403 });
+      }
+
+      // Master cannot change role
+      if (role !== undefined) {
+        return NextResponse.json({ error: "權限不足：Master 無法更改用戶角色" }, { status: 403 });
+      }
+    }
+
     // Prevent admin from demoting themselves
-    if (id === user.userId && role && role !== "admin") {
+    if (isAdmin(user) && id === user.userId && role && role !== "admin") {
       return NextResponse.json({ error: "不能更改自己的管理員角色" }, { status: 400 });
     }
 
     const updateData: Record<string, unknown> = {};
     if (name !== undefined) updateData.name = name;
     if (role !== undefined) {
-      if (!["admin", "editor", "subscriber"].includes(role)) {
+      if (!["admin", "master", "editor", "subscriber"].includes(role)) {
         return NextResponse.json({ error: "無效的角色" }, { status: 400 });
       }
       updateData.role = role;

@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
 import { decrypt } from "@/lib/crypto";
 import { postToFacebook, postToInstagram, postToThreads } from "@/lib/meta";
+import { canAccessBrand } from "@/lib/brand-access";
 
 // POST /api/schedule/publish-now — 立即發布貼文
 export async function POST(request: NextRequest) {
@@ -19,6 +20,12 @@ export async function POST(request: NextRequest) {
 
     if (!brandId || !socialAccountId || !platform || !content) {
       return NextResponse.json({ error: "缺少必要欄位" }, { status: 400 });
+    }
+
+    // Check brand access
+    const hasAccess = await canAccessBrand(user, brandId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "權限不足" }, { status: 403 });
     }
 
     // Verify social account exists and is active

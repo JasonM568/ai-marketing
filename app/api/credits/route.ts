@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { userCredits, creditUsage, creditTransactions, adminUsers } from "@/lib/db/schema";
 import { eq, desc, and, sql, gte } from "drizzle-orm";
-import { getAuthUser, isAdmin, isSubscriber } from "@/lib/auth";
+import { getAuthUser, isAdmin, isMaster, isAdminOrMaster, isSubscriber } from "@/lib/auth";
 import { PLANS } from "@/lib/plans";
 
-// GET /api/credits — get own balance + recent usage (subscriber) or any user (admin)
+// GET /api/credits — get own balance + recent usage (subscriber) or any subscriber (admin/master)
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthUser();
@@ -16,9 +16,22 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const targetUserId = searchParams.get("userId") || user.userId;
 
-    // Non-admin can only view own credits
-    if (!isAdmin(user) && targetUserId !== user.userId) {
+    // Non-admin/master can only view own credits
+    if (!isAdminOrMaster(user) && targetUserId !== user.userId) {
       return NextResponse.json({ error: "權限不足" }, { status: 403 });
+    }
+
+    // Master: can only view subscriber credits (or own)
+    if (isMaster(user) && targetUserId !== user.userId) {
+      const [targetUser] = await db
+        .select({ role: adminUsers.role })
+        .from(adminUsers)
+        .where(eq(adminUsers.id, targetUserId))
+        .limit(1);
+
+      if (!targetUser || targetUser.role !== "subscriber") {
+        return NextResponse.json({ error: "權限不足：只能查看 subscriber 的點數" }, { status: 403 });
+      }
     }
 
     // Get balance
@@ -110,11 +123,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/credits — admin: assign plan / grant credits / adjust
+// POST /api/credits — admin/master: assign plan / grant credits / adjust
 export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser();
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdminOrMaster(user)) {
       return NextResponse.json({ error: "權限不足" }, { status: 403 });
     }
 
@@ -123,6 +136,19 @@ export async function POST(request: NextRequest) {
 
     if (!userId) {
       return NextResponse.json({ error: "請指定用戶" }, { status: 400 });
+    }
+
+    // Master: can only manage subscriber credits
+    if (isMaster(user)) {
+      const [targetUser] = await db
+        .select({ role: adminUsers.role })
+        .from(adminUsers)
+        .where(eq(adminUsers.id, userId))
+        .limit(1);
+
+      if (!targetUser || targetUser.role !== "subscriber") {
+        return NextResponse.json({ error: "權限不足：只能管理 subscriber 的點數" }, { status: 403 });
+      }
     }
 
     if (action === "assign_plan") {

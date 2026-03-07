@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { drafts, brands, agents } from "@/lib/db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
-import { getAuthUser, isAdmin } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
+import { getBrandScopeCondition } from "@/lib/brand-access";
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,9 +20,10 @@ export async function GET(request: NextRequest) {
 
     const conditions = [];
 
-    // Editor only sees own drafts
-    if (!isAdmin(user)) {
-      conditions.push(eq(drafts.createdBy, user.userId));
+    // Brand scope filter based on role
+    const brandScope = await getBrandScopeCondition(user, drafts.brandId);
+    if (brandScope) {
+      conditions.push(brandScope);
     }
 
     if (brandId) conditions.push(eq(drafts.brandId, brandId));

@@ -27,6 +27,7 @@ export function getThreadsOAuthUrl(state: string): string {
     scope: scopes,
     response_type: "code",
     state,
+    force_authentication: "1",
   });
 
   return `${THREADS_OAUTH_URL}?${params.toString()}`;

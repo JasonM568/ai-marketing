@@ -52,25 +52,33 @@ export default function DashboardLayout({
     );
   }
 
-  const allNavItems = [
+  const ROLE_LABELS: Record<string, { emoji: string; label: string }> = {
+    admin: { emoji: "👑", label: "管理員" },
+    master: { emoji: "🛡️", label: "Master 管理者" },
+    editor: { emoji: "✏️", label: "編輯" },
+    subscriber: { emoji: "⭐", label: "訂閱會員" },
+  };
+
+  const allNavItems: {
+    href: string; label: string; icon: string; desc: string; roles?: string[];
+  }[] = [
     { href: "/dashboard", label: "工作總覽", icon: "📊", desc: "數據與快速指令" },
     { href: "/brands", label: "品牌管理", icon: "🏷️", desc: "品牌資料庫" },
     { href: "/workspace", label: "工作區", icon: "✨", desc: "AI 內容產出" },
-    { href: "/agents", label: "AI 助理", icon: "🤖", desc: "代理管理", adminOnly: true },
+    { href: "/agents", label: "AI 助理", icon: "🤖", desc: "代理管理", roles: ["admin", "master"] },
     { href: "/drafts", label: "草稿材料庫", icon: "📄", desc: "產出記錄" },
     { href: "/schedule", label: "排程發文", icon: "📅", desc: "排程管理" },
     { href: "/comments", label: "留言回覆", icon: "💬", desc: "AI 留言管理" },
     { href: "/pricing", label: "方案價格", icon: "💰", desc: "訂閱方案" },
-    { href: "/my-plan", label: "我的方案", icon: "💳", desc: "點數與用量", subscriberOnly: true },
-    { href: "/billing", label: "帳單紀錄", icon: "🧾", desc: "付款記錄", subscriberOnly: true },
-    { href: "/users", label: "帳號管理", icon: "👥", desc: "用戶與權限", adminOnly: true },
+    { href: "/my-plan", label: "我的方案", icon: "💳", desc: "點數與用量", roles: ["subscriber"] },
+    { href: "/billing", label: "帳單紀錄", icon: "🧾", desc: "付款記錄", roles: ["subscriber"] },
+    { href: "/users", label: "帳號管理", icon: "👥", desc: "用戶與權限", roles: ["admin", "master"] },
   ];
 
   // Filter nav items by role — admin sees everything
   const navItems = allNavItems.filter((item) => {
     if (session?.role === "admin") return true;
-    if ("adminOnly" in item && item.adminOnly) return false;
-    if ("subscriberOnly" in item && item.subscriberOnly && session?.role !== "subscriber") return false;
+    if (item.roles) return item.roles.includes(session?.role || "");
     return true;
   });
 
@@ -143,7 +151,7 @@ export default function DashboardLayout({
           <div className="flex items-center justify-between px-3 py-2">
             <div>
               <p className="text-sm text-gray-300">{session?.email?.split("@")[0]}</p>
-              <p className="text-[10px] text-gray-600">{session?.role === "admin" ? "管理員" : session?.role === "subscriber" ? "訂閱會員" : "編輯"}</p>
+              <p className="text-[10px] text-gray-600">{ROLE_LABELS[session?.role || ""]?.emoji} {ROLE_LABELS[session?.role || ""]?.label || session?.role}</p>
             </div>
             <button
               onClick={handleLogout}

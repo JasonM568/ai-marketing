@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, boolean, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, text, boolean, integer, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 
 // ===== 既有表 =====
 
@@ -31,6 +31,19 @@ export const brands = pgTable("brands", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// ===== 品牌成員（多對多：品牌 ↔ 使用者）=====
+
+export const brandMembers = pgTable("brand_members", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  brandId: uuid("brand_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  role: varchar("role", { length: 20 }).default("member").notNull(), // "manager" | "member"
+  assignedBy: uuid("assigned_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  brandUserUnique: uniqueIndex("brand_members_brand_user_unique").on(table.brandId, table.userId),
+}));
 
 export const agents = pgTable("agents", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -269,4 +282,5 @@ export type Subscription = typeof subscriptions.$inferSelect;
 export type PaymentRecord = typeof paymentRecords.$inferSelect;
 export type CommentMonitor = typeof commentMonitors.$inferSelect;
 export type IncomingComment = typeof incomingComments.$inferSelect;
+export type BrandMember = typeof brandMembers.$inferSelect;
 export type ReplySuggestion = typeof replySuggestions.$inferSelect;

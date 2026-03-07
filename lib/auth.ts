@@ -6,7 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-change-me";
 interface AuthUser {
   userId: string;
   email: string;
-  role: "admin" | "editor" | "subscriber";
+  role: "admin" | "master" | "editor" | "subscriber";
 }
 
 // ===== New: getAuthUser (for role-based access control) =====
@@ -19,7 +19,8 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     const secret = new TextEncoder().encode(JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
     const role = payload.role as string;
-    const validRole = role === "admin" ? "admin" : role === "subscriber" ? "subscriber" : "editor";
+    const validRoles = ["admin", "master", "editor", "subscriber"] as const;
+    const validRole = validRoles.includes(role as any) ? (role as AuthUser["role"]) : "editor";
     return {
       userId: payload.userId as string,
       email: payload.email as string,
@@ -32,6 +33,14 @@ export async function getAuthUser(): Promise<AuthUser | null> {
 
 export function isAdmin(user: AuthUser | null): boolean {
   return user?.role === "admin";
+}
+
+export function isMaster(user: AuthUser | null): boolean {
+  return user?.role === "master";
+}
+
+export function isAdminOrMaster(user: AuthUser | null): boolean {
+  return user?.role === "admin" || user?.role === "master";
 }
 
 export function isSubscriber(user: AuthUser | null): boolean {

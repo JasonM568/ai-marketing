@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { brands } from "@/lib/db/schema";
-import { desc, eq } from "drizzle-orm";
-import { getAuthUser, isSubscriber } from "@/lib/auth";
+import { desc, eq, inArray } from "drizzle-orm";
+import { getAuthUser, isAdmin, isSubscriber } from "@/lib/auth";
+import { getAccessibleBrandIds } from "@/lib/brand-access";
 
-// GET /api/brands — subscriber only sees own brands
+// GET /api/brands — scoped by role via getAccessibleBrandIds
 export async function GET() {
   try {
     const user = await getAuthUser();
@@ -12,19 +13,22 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    let result;
-    if (isSubscriber(user)) {
-      // Subscriber: only own brands
+    const accessibleIds = await getAccessibleBrandIds(user);
+
+    let result: (typeof brands.$inferSelect)[];
+    if (accessibleIds === null) {
+      // Admin: all brands
       result = await db
         .select()
         .from(brands)
-        .where(eq(brands.createdBy, user.userId))
         .orderBy(desc(brands.createdAt));
+    } else if (accessibleIds.length === 0) {
+      result = [];
     } else {
-      // Admin / Editor: all brands
       result = await db
         .select()
         .from(brands)
+        .where(inArray(brands.id, accessibleIds))
         .orderBy(desc(brands.createdAt));
     }
 
@@ -35,12 +39,20 @@ export async function GET() {
   }
 }
 
-// POST /api/brands — subscriber max 2 brands
+// POST /api/brands — editors cannot create; subscriber has limit; admin/master can create freely
 export async function POST(request: Request) {
   try {
     const user = await getAuthUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Editor cannot create brands
+    if (user.role === "editor") {
+      return NextResponse.json(
+        { error: "權限不足：編輯者無法建立品牌" },
+        { status: 403 }
+      );
     }
 
     // Subscriber: check brand limit from plan

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { commentMonitors, socialAccounts } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
+import { canAccessBrand } from "@/lib/brand-access";
 
 // GET: List monitors for a brand
 export async function GET(request: NextRequest) {
@@ -12,6 +13,12 @@ export async function GET(request: NextRequest) {
 
     const brandId = request.nextUrl.searchParams.get("brandId");
     if (!brandId) return NextResponse.json({ error: "缺少 brandId" }, { status: 400 });
+
+    // Check brand access
+    const hasAccess = await canAccessBrand(user, brandId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "權限不足" }, { status: 403 });
+    }
 
     const monitors = await db
       .select()
@@ -37,6 +44,12 @@ export async function POST(request: NextRequest) {
 
     if (!brandId || !socialAccountId || !platform) {
       return NextResponse.json({ error: "缺少必要欄位" }, { status: 400 });
+    }
+
+    // Check brand access
+    const hasAccess = await canAccessBrand(user, brandId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "權限不足" }, { status: 403 });
     }
 
     // Validate: "all" mode requires Business plan

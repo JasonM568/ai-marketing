@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { drafts, brands, agents, conversations } from "@/lib/db/schema";
-import { eq, sql, desc, and } from "drizzle-orm";
-import { getAuthUser, isAdmin, isSubscriber } from "@/lib/auth";
+import { eq, sql, desc, and, inArray } from "drizzle-orm";
+import { getAuthUser } from "@/lib/auth";
+import { getAccessibleBrandIds } from "@/lib/brand-access";
 
 export async function GET() {
   try {
@@ -11,19 +12,31 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const admin = isAdmin(user);
-    const subscriber = isSubscriber(user);
+    const accessibleIds = await getAccessibleBrandIds(user);
 
-    // Scoped conditions for non-admin
-    const draftScope = admin
-      ? undefined
-      : eq(drafts.createdBy, user.userId);
-    const convScope = admin
-      ? undefined
-      : eq(conversations.createdBy, user.userId);
-    const brandScope = subscriber
-      ? eq(brands.createdBy, user.userId)
-      : undefined;
+    // Build brand scope condition
+    const brandScope =
+      accessibleIds === null
+        ? undefined
+        : accessibleIds.length === 0
+        ? sql`false`
+        : inArray(brands.id, accessibleIds);
+
+    // Build draft scope: filter by brandId in accessible brands
+    const draftScope =
+      accessibleIds === null
+        ? undefined
+        : accessibleIds.length === 0
+        ? sql`false`
+        : inArray(drafts.brandId, accessibleIds);
+
+    // Build conversation scope: filter by brandId in accessible brands
+    const convScope =
+      accessibleIds === null
+        ? undefined
+        : accessibleIds.length === 0
+        ? sql`false`
+        : inArray(conversations.brandId, accessibleIds);
 
     // Total counts
     const [brandCount] = await db
@@ -106,8 +119,12 @@ export async function GET() {
     const dailyConditions = [
       sql`${drafts.createdAt} > now() - interval '7 days'`,
     ];
-    if (!admin) {
-      dailyConditions.push(sql`${drafts.createdBy} = ${user.userId}`);
+    if (accessibleIds !== null) {
+      if (accessibleIds.length === 0) {
+        dailyConditions.push(sql`false`);
+      } else {
+        dailyConditions.push(inArray(drafts.brandId, accessibleIds));
+      }
     }
 
     const dailyDrafts = await db

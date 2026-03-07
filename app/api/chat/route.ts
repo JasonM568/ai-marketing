@@ -4,6 +4,7 @@ import { brands, agents, conversations, userCredits, creditUsage, creditTransact
 import { eq, sql } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { getAuthUser, isSubscriber } from "@/lib/auth";
+import { canAccessBrand } from "@/lib/brand-access";
 import { getCreditsForAgent, getCreditsForFollowup, calculateOverageCost } from "@/lib/plans";
 
 const anthropic = new Anthropic({
@@ -40,11 +41,15 @@ export async function POST(request: NextRequest) {
         .limit(1);
       brandData = brand;
 
-      if (isSubscriber(user) && brand && brand.createdBy !== user.userId) {
-        return new Response(JSON.stringify({ error: "權限不足：只能使用自己的品牌" }), {
-          status: 403,
-          headers: { "Content-Type": "application/json" },
-        });
+      // Check brand access for all roles
+      if (brand) {
+        const hasAccess = await canAccessBrand(user, brand.id);
+        if (!hasAccess) {
+          return new Response(JSON.stringify({ error: "權限不足" }), {
+            status: 403,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
       }
     }
 

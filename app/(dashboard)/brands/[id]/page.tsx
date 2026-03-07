@@ -16,6 +16,7 @@ const TABS = [
   { id: "brandStory", label: "品牌故事", icon: "📖", desc: "品牌起源與核心理念" },
   { id: "files", label: "參考資料", icon: "📎", desc: "上傳品牌參考文件供 AI 使用" },
   { id: "social", label: "社群帳號", icon: "🔗", desc: "連結 Meta 平台帳號" },
+  { id: "members", label: "團隊成員", icon: "👥", desc: "品牌成員與權限管理" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -26,6 +27,25 @@ interface BrandFileItem {
   fileType: string;
   fileSize: number;
   createdAt: string;
+}
+
+interface BrandMember {
+  id: string;
+  brandId: string;
+  userId: string;
+  role: string;
+  assignedBy: string;
+  createdAt: string;
+  userName: string;
+  userEmail: string;
+  userRole: string;
+}
+
+interface SelectableUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
 }
 
 const FILE_ICONS: Record<string, string> = {
@@ -65,6 +85,13 @@ export default function BrandDetailPage() {
   const [filesLoading, setFilesLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [members, setMembers] = useState<BrandMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<SelectableUser[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedMemberRole, setSelectedMemberRole] = useState("member");
+  const [addingMember, setAddingMember] = useState(false);
 
   const fetchBrand = useCallback(async () => {
     try {
@@ -107,6 +134,85 @@ export default function BrandDetailPage() {
     }
   }, [activeTab, fetchFiles]);
 
+  const fetchMembers = useCallback(async () => {
+    setMembersLoading(true);
+    try {
+      const res = await fetch(`/api/brands/${brandId}/members`);
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setMembers(data.members || []);
+    } catch {
+      console.error("Failed to fetch members");
+    } finally {
+      setMembersLoading(false);
+    }
+  }, [brandId]);
+
+  useEffect(() => {
+    if (activeTab === "members") {
+      fetchMembers();
+    }
+  }, [activeTab, fetchMembers]);
+
+  const handleOpenAddMember = async () => {
+    setShowAddMember(true);
+    setSelectedUserId("");
+    setSelectedMemberRole("member");
+    try {
+      const res = await fetch("/api/users");
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      const users = (data.users || []).filter(
+        (u: SelectableUser) => (u.role === "editor" || u.role === "master") && !members.some((m) => m.userId === u.id)
+      );
+      setAvailableUsers(users);
+    } catch {
+      setAvailableUsers([]);
+    }
+  };
+
+  const handleAddMember = async () => {
+    if (!selectedUserId) return;
+    setAddingMember(true);
+    try {
+      const res = await fetch(`/api/brands/${brandId}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: selectedUserId, role: selectedMemberRole }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "新增失敗");
+        return;
+      }
+      setShowAddMember(false);
+      fetchMembers();
+    } catch {
+      alert("新增成員失敗");
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  const handleRemoveMember = async (userId: string, userName: string) => {
+    if (!confirm(`確定要移除成員 ${userName} 嗎？`)) return;
+    try {
+      const res = await fetch(`/api/brands/${brandId}/members`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "移除失敗");
+        return;
+      }
+      setMembers((prev) => prev.filter((m) => m.userId !== userId));
+    } catch {
+      alert("移除成員失敗");
+    }
+  };
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
@@ -118,6 +224,11 @@ export default function BrandDetailPage() {
     }
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [statusDropdownOpen]);
+
+  const visibleTabs = TABS.filter((tab) => {
+    if (tab.id === "members" && userRole === "subscriber") return false;
+    return true;
+  });
 
   const currentTab = TABS.find((t) => t.id === activeTab)!;
   const currentContent = brand ? ((brand as any)[activeTab] as string) || "" : "";
@@ -317,7 +428,7 @@ export default function BrandDetailPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-5 overflow-x-auto pb-1">
-        {TABS.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => {
@@ -345,7 +456,7 @@ export default function BrandDetailPage() {
             </h2>
             <p className="text-[11px] text-gray-600 mt-0.5">{currentTab.desc}</p>
           </div>
-          {activeTab !== "files" && (
+          {activeTab !== "files" && activeTab !== "members" && (
             !editing ? (
               <button
                 onClick={handleStartEdit}
@@ -371,7 +482,162 @@ export default function BrandDetailPage() {
         </div>
 
         <div className="p-5">
-          {activeTab === "social" ? (
+          {activeTab === "members" ? (
+            <div>
+              {/* Add Member Button for admin/master */}
+              {(userRole === "admin" || userRole === "master") && (
+                <div className="flex justify-end mb-4">
+                  <button
+                    onClick={handleOpenAddMember}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-xs font-medium rounded-xl hover:bg-blue-700 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    新增成員
+                  </button>
+                </div>
+              )}
+
+              {/* Members List */}
+              {membersLoading ? (
+                <div className="text-center py-8">
+                  <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto" />
+                </div>
+              ) : members.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-4xl mb-3">👥</p>
+                  <p className="text-gray-600 text-sm">此品牌尚未指派團隊成員</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {members.map((m) => {
+                    const memberRoleBadge = m.role === "manager"
+                      ? { label: "管理者", cls: "bg-purple-500/10 text-purple-400 border-purple-500/20" }
+                      : { label: "成員", cls: "bg-blue-500/10 text-blue-400 border-blue-500/20" };
+                    const userRoleBadge = m.userRole === "master"
+                      ? { label: "Master", cls: "bg-purple-500/10 text-purple-400 border-purple-500/20" }
+                      : { label: "編輯", cls: "bg-gray-500/10 text-gray-400 border-gray-500/20" };
+                    return (
+                      <div
+                        key={m.id}
+                        className="flex items-center justify-between px-4 py-3 bg-white/[0.02] border border-white/[0.06] rounded-xl hover:border-white/[0.12] transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-gray-800 flex items-center justify-center text-sm">
+                            {m.userRole === "master" ? "🛡️" : "✏️"}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm text-white font-medium">{m.userName || "—"}</span>
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full border ${memberRoleBadge.cls}`}>
+                                {memberRoleBadge.label}
+                              </span>
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full border ${userRoleBadge.cls}`}>
+                                {userRoleBadge.label}
+                              </span>
+                            </div>
+                            <p className="text-gray-500 text-xs mt-0.5">{m.userEmail}</p>
+                          </div>
+                        </div>
+                        {(userRole === "admin" || userRole === "master") && (
+                          <button
+                            onClick={() => handleRemoveMember(m.userId, m.userName || m.userEmail)}
+                            className="px-3 py-1.5 text-xs bg-red-900/30 text-red-400 rounded-lg hover:bg-red-900/50 transition-colors"
+                          >
+                            移除
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Add Member Modal */}
+              {showAddMember && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                  <div className="absolute inset-0 bg-black/70" onClick={() => setShowAddMember(false)} />
+                  <div className="relative w-full max-w-md bg-gray-900 border border-white/10 rounded-2xl p-6">
+                    <h3 className="text-lg font-semibold text-white mb-4">新增品牌成員</h3>
+
+                    {/* User Selection */}
+                    <div className="mb-4">
+                      <label className="block text-sm text-gray-400 mb-1.5">選擇用戶</label>
+                      {availableUsers.length === 0 ? (
+                        <p className="text-gray-600 text-sm py-4 text-center">沒有可指派的用戶（僅限 editor / master）</p>
+                      ) : (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {availableUsers.map((u) => (
+                            <button
+                              key={u.id}
+                              onClick={() => setSelectedUserId(u.id)}
+                              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
+                                selectedUserId === u.id
+                                  ? "border border-blue-500 bg-blue-500/10"
+                                  : "border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12]"
+                              }`}
+                            >
+                              <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-sm">
+                                {u.role === "master" ? "🛡️" : "✏️"}
+                              </div>
+                              <div>
+                                <p className="text-sm text-white">{u.name || u.email}</p>
+                                <p className="text-[10px] text-gray-500">{u.email} · {u.role === "master" ? "Master" : "編輯"}</p>
+                              </div>
+                              {selectedUserId === u.id && <span className="ml-auto text-blue-400">✓</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Role Selection */}
+                    <div className="mb-6">
+                      <label className="block text-sm text-gray-400 mb-1.5">成員角色</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: "manager", label: "管理者", desc: "品牌管理權限" },
+                          { value: "member", label: "成員", desc: "一般成員" },
+                        ].map((r) => (
+                          <button
+                            key={r.value}
+                            type="button"
+                            onClick={() => setSelectedMemberRole(r.value)}
+                            className={`p-3 rounded-xl border text-center transition-all ${
+                              selectedMemberRole === r.value
+                                ? "border-blue-500 bg-blue-500/10 text-white"
+                                : "border-white/10 bg-white/5 text-gray-400 hover:border-white/20"
+                            }`}
+                          >
+                            <p className="text-sm font-medium">{r.label}</p>
+                            <p className="text-[10px] mt-0.5 text-gray-500">{r.desc}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowAddMember(false)}
+                        className="flex-1 py-2 bg-white/5 text-gray-400 rounded-xl hover:bg-white/10 text-sm"
+                      >
+                        取消
+                      </button>
+                      <button
+                        onClick={handleAddMember}
+                        disabled={!selectedUserId || addingMember}
+                        className="flex-1 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-sm font-medium"
+                      >
+                        {addingMember ? "新增中..." : "確認新增"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : activeTab === "social" ? (
             <div className="text-center py-8">
               <p className="text-4xl mb-3">🔗</p>
               <p className="text-gray-400 mb-4">管理此品牌的社群帳號連結（Facebook、Instagram、Threads）</p>

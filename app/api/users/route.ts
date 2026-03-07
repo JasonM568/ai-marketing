@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { adminUsers } from "@/lib/db/schema";
-import { desc } from "drizzle-orm";
-import { getAuthUser, isAdmin } from "@/lib/auth";
+import { desc, eq } from "drizzle-orm";
+import { getAuthUser, isAdmin, isMaster, isAdminOrMaster } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
-// GET /api/users — admin only
+// GET /api/users — admin sees all, master sees only subscribers
 export async function GET() {
   try {
     const user = await getAuthUser();
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdminOrMaster(user)) {
       return NextResponse.json({ error: "權限不足" }, { status: 403 });
     }
 
-    const users = await db
+    let query = db
       .select({
         id: adminUsers.id,
         email: adminUsers.email,
@@ -22,7 +22,15 @@ export async function GET() {
         createdAt: adminUsers.createdAt,
       })
       .from(adminUsers)
-      .orderBy(desc(adminUsers.createdAt));
+      .orderBy(desc(adminUsers.createdAt))
+      .$dynamic();
+
+    // Master: only sees subscribers
+    if (isMaster(user)) {
+      query = query.where(eq(adminUsers.role, "subscriber"));
+    }
+
+    const users = await query;
 
     return NextResponse.json({ users });
   } catch (error) {
@@ -31,11 +39,11 @@ export async function GET() {
   }
 }
 
-// POST /api/users — admin only, create new user
+// POST /api/users — admin/master can create. Master can only create subscriber accounts.
 export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser();
-    if (!user || !isAdmin(user)) {
+    if (!user || !isAdminOrMaster(user)) {
       return NextResponse.json({ error: "權限不足" }, { status: 403 });
     }
 
@@ -46,7 +54,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email 和密碼為必填" }, { status: 400 });
     }
 
-    if (!["admin", "editor", "subscriber"].includes(role)) {
+    // Admin can create admin/master/editor/subscriber; Master can only create subscriber
+    const validRolesForAdmin = ["admin", "master", "editor", "subscriber"];
+    const validRolesForMaster = ["subscriber"];
+
+    const allowedRoles = isAdmin(user) ? validRolesForAdmin : validRolesForMaster;
+
+    if (!allowedRoles.includes(role)) {
+      if (isMaster(user)) {
+        return NextResponse.json({ error: "Master 只能建立 subscriber 帳號" }, { status: 403 });
+      }
       return NextResponse.json({ error: "無效的角色" }, { status: 400 });
     }
 
@@ -55,7 +72,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Check duplicate email
-    const { eq } = await import("drizzle-orm");
     const existing = await db
       .select({ id: adminUsers.id })
       .from(adminUsers)

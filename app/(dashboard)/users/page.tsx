@@ -13,6 +13,7 @@ interface User {
 
 const ROLE_MAP: Record<string, { label: string; cls: string }> = {
   admin: { label: "管理員", cls: "bg-red-500/10 text-red-400 border-red-500/20" },
+  master: { label: "Master", cls: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
   editor: { label: "編輯", cls: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
   subscriber: { label: "訂閱會員", cls: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
 };
@@ -27,6 +28,7 @@ export default function UsersPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [currentUserId, setCurrentUserId] = useState("");
+  const [currentUserRole, setCurrentUserRole] = useState("admin");
   const [planModal, setPlanModal] = useState<User | null>(null);
   const [selectedPlan, setSelectedPlan] = useState("");
   const [planSaving, setPlanSaving] = useState(false);
@@ -62,7 +64,7 @@ export default function UsersPage() {
     fetchUsers();
     fetch("/api/auth/me")
       .then((r) => r.json())
-      .then((d) => setCurrentUserId(d.userId || ""))
+      .then((d) => { setCurrentUserId(d.userId || ""); setCurrentUserRole(d.role || "admin"); })
       .catch(() => {});
   }, [fetchUsers]);
 
@@ -212,15 +214,16 @@ export default function UsersPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         {[
-          { label: "管理員", count: users.filter((u) => u.role === "admin").length, color: "text-red-400" },
-          { label: "編輯", count: users.filter((u) => u.role === "editor").length, color: "text-blue-400" },
-          { label: "訂閱會員", count: users.filter((u) => u.role === "subscriber").length, color: "text-amber-400" },
+          { label: "管理員", emoji: "👑", count: users.filter((u) => u.role === "admin").length, color: "text-red-400" },
+          { label: "Master", emoji: "🛡️", count: users.filter((u) => u.role === "master").length, color: "text-purple-400" },
+          { label: "編輯", emoji: "✏️", count: users.filter((u) => u.role === "editor").length, color: "text-blue-400" },
+          { label: "訂閱會員", emoji: "⭐", count: users.filter((u) => u.role === "subscriber").length, color: "text-amber-400" },
         ].map((s) => (
           <div key={s.label} className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
             <p className={`text-2xl font-bold ${s.color}`}>{s.count}</p>
-            <p className="text-gray-500 text-xs mt-1">{s.label}</p>
+            <p className="text-gray-500 text-xs mt-1">{s.emoji} {s.label}</p>
           </div>
         ))}
       </div>
@@ -237,7 +240,7 @@ export default function UsersPage() {
             >
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-lg">
-                  {u.role === "admin" ? "👑" : u.role === "subscriber" ? "⭐" : "✏️"}
+                  {u.role === "admin" ? "👑" : u.role === "master" ? "🛡️" : u.role === "subscriber" ? "⭐" : "✏️"}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -356,12 +359,18 @@ export default function UsersPage() {
               {/* Role */}
               <div>
                 <label className="block text-sm text-gray-400 mb-1.5">角色</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { value: "admin", label: "👑 管理員", desc: "完整權限" },
-                    { value: "editor", label: "✏️ 編輯", desc: "內部團隊" },
-                    { value: "subscriber", label: "⭐ 訂閱會員", desc: "僅限自己" },
-                  ].map((r) => (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {(currentUserRole === "admin"
+                    ? [
+                        { value: "admin", label: "👑 管理員", desc: "完整權限" },
+                        { value: "master", label: "🛡️ Master", desc: "管理訂閱會員" },
+                        { value: "editor", label: "✏️ 編輯", desc: "內部團隊" },
+                        { value: "subscriber", label: "⭐ 訂閱會員", desc: "僅限自己" },
+                      ]
+                    : [
+                        { value: "subscriber", label: "⭐ 訂閱會員", desc: "僅限自己" },
+                      ]
+                  ).map((r) => (
                     <button
                       key={r.value}
                       type="button"

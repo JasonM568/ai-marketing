@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { socialAccounts, brands } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
-import { getAuthUser, isSubscriber } from "@/lib/auth";
+import { socialAccounts } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import { getAuthUser } from "@/lib/auth";
+import { canAccessBrand } from "@/lib/brand-access";
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,12 +17,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "缺少 brandId" }, { status: 400 });
     }
 
-    // Subscriber ownership check
-    if (isSubscriber(user)) {
-      const [brand] = await db.select().from(brands).where(and(eq(brands.id, brandId), eq(brands.createdBy, user.userId)));
-      if (!brand) {
-        return NextResponse.json({ error: "無權限" }, { status: 403 });
-      }
+    // Check brand access
+    const hasAccess = await canAccessBrand(user, brandId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "權限不足" }, { status: 403 });
     }
 
     const accounts = await db

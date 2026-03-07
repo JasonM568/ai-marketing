@@ -3,8 +3,9 @@ import { db } from "@/lib/db";
 import { brands } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getAuthUser, isAdmin, isSubscriber } from "@/lib/auth";
+import { canAccessBrand } from "@/lib/brand-access";
 
-// GET /api/brands/[id] — subscriber only own brands
+// GET /api/brands/[id] — scoped by canAccessBrand
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -32,8 +33,9 @@ export async function GET(
       return NextResponse.json({ error: "品牌不存在" }, { status: 404 });
     }
 
-    // Subscriber: can only view own brands
-    if (isSubscriber(user) && brand.createdBy !== user.userId) {
+    // Check brand access
+    const hasAccess = await canAccessBrand(user, brand.id);
+    if (!hasAccess) {
       return NextResponse.json({ error: "權限不足" }, { status: 403 });
     }
 
@@ -44,7 +46,7 @@ export async function GET(
   }
 }
 
-// PUT /api/brands/[id] — subscriber only own brands
+// PUT /api/brands/[id] — scoped by canAccessBrand
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -57,17 +59,10 @@ export async function PUT(
 
     const { id } = await params;
 
-    // Subscriber: check ownership
-    if (isSubscriber(user)) {
-      const [existing] = await db
-        .select({ createdBy: brands.createdBy })
-        .from(brands)
-        .where(eq(brands.id, id))
-        .limit(1);
-
-      if (!existing || existing.createdBy !== user.userId) {
-        return NextResponse.json({ error: "權限不足：只能編輯自己的品牌" }, { status: 403 });
-      }
+    // Check brand access
+    const hasAccess = await canAccessBrand(user, id);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "權限不足" }, { status: 403 });
     }
 
     const body = await request.json();
@@ -159,7 +154,7 @@ export async function PUT(
   }
 }
 
-// DELETE /api/brands/[id] — admin all, subscriber own only, editor forbidden
+// DELETE /api/brands/[id] — admin only OR subscriber own brand. Master and Editor cannot delete.
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -172,7 +167,9 @@ export async function DELETE(
 
     const { id } = await params;
 
-    if (isSubscriber(user)) {
+    if (isAdmin(user)) {
+      // Admin: can delete any brand
+    } else if (isSubscriber(user)) {
       // Subscriber: can only delete own brands
       const [existing] = await db
         .select({ createdBy: brands.createdBy })
@@ -183,8 +180,8 @@ export async function DELETE(
       if (!existing || existing.createdBy !== user.userId) {
         return NextResponse.json({ error: "權限不足：只能刪除自己的品牌" }, { status: 403 });
       }
-    } else if (!isAdmin(user)) {
-      // Editor: cannot delete
+    } else {
+      // Master and Editor: cannot delete brands
       return NextResponse.json(
         { error: "權限不足：僅管理員可刪除品牌" },
         { status: 403 }

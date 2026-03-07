@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { scheduledPosts, socialAccounts, brands, drafts } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { getAuthUser, isSubscriber } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
+import { getBrandScopeCondition, canAccessBrand } from "@/lib/brand-access";
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,9 +34,12 @@ export async function GET(request: NextRequest) {
 
     const conditions = [];
 
-    if (isSubscriber(user)) {
-      conditions.push(eq(scheduledPosts.createdBy, user.userId));
+    // Brand scope filter based on role
+    const brandScope = await getBrandScopeCondition(user, scheduledPosts.brandId);
+    if (brandScope) {
+      conditions.push(brandScope);
     }
+
     if (brandId) {
       conditions.push(eq(scheduledPosts.brandId, brandId));
     }
@@ -67,6 +71,12 @@ export async function POST(request: NextRequest) {
 
     if (!brandId || !socialAccountId || !platform || !content || !scheduledAt) {
       return NextResponse.json({ error: "缺少必要欄位" }, { status: 400 });
+    }
+
+    // Check brand access
+    const hasAccess = await canAccessBrand(user, brandId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "權限不足" }, { status: 403 });
     }
 
     // Verify social account exists and is active
