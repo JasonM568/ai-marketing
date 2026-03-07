@@ -122,7 +122,10 @@ export async function POST(
 
     if (uploadError) {
       console.error("Storage upload error:", uploadError);
-      return NextResponse.json({ error: "檔案上傳失敗" }, { status: 500 });
+      return NextResponse.json(
+        { error: `檔案上傳失敗：${uploadError.message || "儲存空間錯誤"}` },
+        { status: 500 }
+      );
     }
 
     // Save to DB
@@ -153,6 +156,7 @@ export async function POST(
     );
   } catch (error) {
     console.error("POST /api/brands/[id]/files error:", error);
-    return NextResponse.json({ error: "檔案上傳失敗" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "未知錯誤";
+    return NextResponse.json({ error: `檔案上傳失敗：${message}` }, { status: 500 });
   }
 }
