@@ -52,6 +52,7 @@ export default function WorkspacePage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const isComposingRef = useRef(false);
 
   useEffect(() => {
     fetch("/api/brands", { credentials: "include" }).then((r) => r.json()).then((d) => setBrands(d.brands || d)).catch(console.error);
@@ -275,10 +276,27 @@ export default function WorkspacePage() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+    if (
+      e.key === "Enter" &&
+      !e.shiftKey &&
+      !e.nativeEvent.isComposing &&
+      !isComposingRef.current
+    ) {
       e.preventDefault();
       sendMessage();
     }
+  }
+
+  function handleCompositionStart() {
+    isComposingRef.current = true;
+  }
+
+  function handleCompositionEnd() {
+    // Chrome fires compositionend BEFORE the final keydown,
+    // so delay clearing the flag to let that keydown be ignored.
+    setTimeout(() => {
+      isComposingRef.current = false;
+    }, 100);
   }
 
   function autoResize(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -618,6 +636,8 @@ export default function WorkspacePage() {
                   value={input}
                   onChange={autoResize}
                   onKeyDown={handleKeyDown}
+                  onCompositionStart={handleCompositionStart}
+                  onCompositionEnd={handleCompositionEnd}
                   placeholder={`對 ${selectedAgent?.name} 說些什麼...`}
                   disabled={isStreaming}
                   rows={1}
