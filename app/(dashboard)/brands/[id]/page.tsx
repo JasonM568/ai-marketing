@@ -294,8 +294,14 @@ export default function BrandDetailPage() {
         body: formData,
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "上傳失敗");
+        let errorMsg = "上傳失敗";
+        try {
+          const data = await res.json();
+          errorMsg = data.error || errorMsg;
+        } catch {
+          errorMsg = `上傳失敗（${res.status}）`;
+        }
+        throw new Error(errorMsg);
       }
       await fetchFiles();
     } catch (err) {
