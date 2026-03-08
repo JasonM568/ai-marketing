@@ -84,6 +84,7 @@ export default function BrandDetailPage() {
   const [files, setFiles] = useState<BrandFileItem[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState("");
   const [members, setMembers] = useState<BrandMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
@@ -285,29 +286,75 @@ export default function BrandDetailPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
+    setUploadProgress(0);
     setUploadError("");
-    const formData = new FormData();
-    formData.append("file", file);
+
     try {
-      const res = await fetch(`/api/brands/${brandId}/files`, {
+      // Step 1: Get signed upload URL
+      const signRes = await fetch(`/api/brands/${brandId}/files`, {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "sign",
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+        }),
       });
-      if (!res.ok) {
-        let errorMsg = "上傳失敗";
-        try {
-          const data = await res.json();
-          errorMsg = data.error || errorMsg;
-        } catch {
-          errorMsg = `上傳失敗（${res.status}）`;
-        }
-        throw new Error(errorMsg);
+      if (!signRes.ok) {
+        const data = await signRes.json();
+        throw new Error(data.error || "無法產生上傳連結");
       }
+      const { signedUrl, token, storagePath } = await signRes.json();
+
+      // Step 2: Upload directly to Supabase via XHR (with progress)
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (evt) => {
+          if (evt.lengthComputable) {
+            setUploadProgress(Math.round((evt.loaded / evt.total) * 90)); // 0-90%
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve();
+          } else {
+            reject(new Error(`上傳失敗（${xhr.status}）`));
+          }
+        };
+        xhr.onerror = () => reject(new Error("網路錯誤，請重試"));
+        xhr.open("PUT", signedUrl);
+        xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+        xhr.send(file);
+      });
+
+      setUploadProgress(95); // Processing...
+
+      // Step 3: Confirm upload & parse content
+      const confirmRes = await fetch(`/api/brands/${brandId}/files`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "confirm",
+          storagePath,
+          fileName: file.name,
+          fileSize: file.size,
+          contentType: file.type,
+        }),
+      });
+      if (!confirmRes.ok) {
+        const data = await confirmRes.json();
+        throw new Error(data.error || "檔案儲存失敗");
+      }
+
+      setUploadProgress(100);
       await fetchFiles();
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "上傳失敗");
     } finally {
       setUploading(false);
+      setUploadProgress(0);
       e.target.value = "";
     }
   };
@@ -657,24 +704,36 @@ export default function BrandDetailPage() {
           ) : activeTab === "files" ? (
             <div>
               {/* Upload Area */}
-              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:border-blue-500/30 hover:bg-blue-600/5 transition-all">
-                <div className="text-center">
-                  <p className="text-2xl mb-1">📎</p>
-                  <p className="text-sm text-gray-400">
-                    {uploading ? "上傳中..." : "點擊上傳檔案"}
+              {uploading ? (
+                <div className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-blue-500/30 rounded-xl bg-blue-600/5">
+                  <p className="text-sm text-blue-400 mb-3">
+                    {uploadProgress < 90 ? "上傳中..." : uploadProgress < 100 ? "處理中..." : "完成！"}
                   </p>
-                  <p className="text-[10px] text-gray-600 mt-1">
-                    支援 PDF, DOCX, DOC, CSV, TXT（最大 10MB）
-                  </p>
+                  <div className="w-64 h-2 bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-1.5">{uploadProgress}%</p>
                 </div>
-                <input
-                  type="file"
-                  className="hidden"
-                  accept=".pdf,.docx,.doc,.csv,.txt"
-                  onChange={handleFileUpload}
-                  disabled={uploading}
-                />
-              </label>
+              ) : (
+                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:border-blue-500/30 hover:bg-blue-600/5 transition-all">
+                  <div className="text-center">
+                    <p className="text-2xl mb-1">📎</p>
+                    <p className="text-sm text-gray-400">點擊上傳檔案</p>
+                    <p className="text-[10px] text-gray-600 mt-1">
+                      支援 PDF, DOCX, DOC, CSV, TXT（最大 10MB）
+                    </p>
+                  </div>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.docx,.doc,.csv,.txt"
+                    onChange={handleFileUpload}
+                  />
+                </label>
+              )}
 
               {uploadError && (
                 <p className="text-red-400 text-xs mt-2">{uploadError}</p>
