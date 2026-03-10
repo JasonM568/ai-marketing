@@ -11,6 +11,7 @@ export const adminUsers = pgTable("admin_users", {
   planId: varchar("plan_id", { length: 20 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastLoginAt: timestamp("last_login_at"),
+  sessionToken: varchar("session_token", { length: 255 }),
 });
 
 export const brands = pgTable("brands", {

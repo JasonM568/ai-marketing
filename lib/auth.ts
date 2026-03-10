@@ -7,6 +7,7 @@ interface AuthUser {
   userId: string;
   email: string;
   role: "admin" | "master" | "editor" | "subscriber";
+  sessionToken?: string;
 }
 
 // ===== New: getAuthUser (for role-based access control) =====
@@ -25,6 +26,7 @@ export async function getAuthUser(): Promise<AuthUser | null> {
       userId: payload.userId as string,
       email: payload.email as string,
       role: validRole,
+      sessionToken: (payload.sessionToken as string) || undefined,
     };
   } catch {
     return null;

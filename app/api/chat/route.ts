@@ -268,6 +268,25 @@ export async function POST(request: NextRequest) {
           const outputTokens = finalMessage.usage?.output_tokens || 0;
           const totalTokens = inputTokens + outputTokens;
 
+          // ===== Non-subscriber: log token usage only (no credit deduction) =====
+          if (!isSubUser) {
+            try {
+              await db.insert(creditUsage).values({
+                userId: user.userId,
+                agentId: agentId || null,
+                brandId: brandId || null,
+                conversationId: activeConversationId || null,
+                creditsUsed: 0,
+                contentType: agentData?.category === "strategy" ? "strategy" : "social_post",
+                inputTokens,
+                outputTokens,
+                description: `${agentData?.name || "AI 助手"}（${totalTokens.toLocaleString()} tokens）`,
+              });
+            } catch (err) {
+              console.error("Usage logging error:", err);
+            }
+          }
+
           // ===== Subscriber: calculate overage + log =====
           if (isSubUser) {
             try {

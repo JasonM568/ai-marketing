@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 
@@ -38,6 +38,61 @@ export default function DashboardLayout({
       })
       .catch(() => router.push("/login"));
   }, [router]);
+
+  // ===== Session polling: detect single-device kick =====
+  useEffect(() => {
+    if (!ready) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (res.status === 401) {
+          const data = await res.json().catch(() => ({}));
+          if (data.error === "session_invalid") {
+            alert("您的帳號已在其他裝置登入，即將返回登入頁面");
+          }
+          clearInterval(interval);
+          router.push("/login");
+        }
+      } catch {
+        // network error — skip this cycle
+      }
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, [ready, router]);
+
+  // ===== Inactivity auto-logout (30 minutes) =====
+  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const throttleRef = useRef(false);
+
+  const IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+
+  const resetIdleTimer = useCallback(() => {
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    inactivityTimer.current = setTimeout(async () => {
+      await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+      router.push("/login");
+    }, IDLE_TIMEOUT);
+  }, [router]);
+
+  useEffect(() => {
+    if (!ready) return;
+
+    const handleActivity = () => {
+      if (throttleRef.current) return;
+      throttleRef.current = true;
+      resetIdleTimer();
+      setTimeout(() => { throttleRef.current = false; }, 5_000);
+    };
+
+    const events = ["mousemove", "keydown", "click", "scroll", "touchstart"] as const;
+    events.forEach((e) => window.addEventListener(e, handleActivity));
+    resetIdleTimer(); // start timer on mount
+
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, handleActivity));
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    };
+  }, [ready, resetIdleTimer]);
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });

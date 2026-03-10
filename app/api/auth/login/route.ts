@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { signToken } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { randomUUID } from "crypto";
 
 export async function POST(request: Request) {
   try {
@@ -29,16 +30,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "帳號或密碼錯誤" }, { status: 401 });
     }
 
-    // Record last login time
+    // Generate session token for single-device enforcement
+    const sessionToken = randomUUID();
+
+    // Record last login time + session token
     await db
       .update(adminUsers)
-      .set({ lastLoginAt: new Date() })
+      .set({ lastLoginAt: new Date(), sessionToken })
       .where(eq(adminUsers.id, user.id));
 
     const token = await signToken({
       userId: user.id,
       email: user.email,
       role: user.role,
+      sessionToken,
     });
 
     const cookieStore = await cookies();
