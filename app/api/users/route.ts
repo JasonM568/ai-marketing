@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { adminUsers } from "@/lib/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { adminUsers, creditUsage } from "@/lib/db/schema";
+import { desc, eq, gte, sql } from "drizzle-orm";
 import { getAuthUser, isAdmin, isMaster, isAdminOrMaster } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
@@ -20,6 +20,7 @@ export async function GET() {
         name: adminUsers.name,
         role: adminUsers.role,
         createdAt: adminUsers.createdAt,
+        lastLoginAt: adminUsers.lastLoginAt,
       })
       .from(adminUsers)
       .orderBy(desc(adminUsers.createdAt))
@@ -32,7 +33,40 @@ export async function GET() {
 
     const users = await query;
 
-    return NextResponse.json({ users });
+    // Aggregate monthly token consumption for all users
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const tokenStats = await db
+      .select({
+        userId: creditUsage.userId,
+        totalInputTokens: sql<number>`coalesce(sum(${creditUsage.inputTokens}), 0)::int`,
+        totalOutputTokens: sql<number>`coalesce(sum(${creditUsage.outputTokens}), 0)::int`,
+        totalCreditsUsed: sql<number>`coalesce(sum(${creditUsage.creditsUsed}), 0)::int`,
+        usageCount: sql<number>`count(*)::int`,
+      })
+      .from(creditUsage)
+      .where(gte(creditUsage.createdAt, startOfMonth))
+      .groupBy(creditUsage.userId);
+
+    const statsMap = new Map(tokenStats.map((s) => [s.userId, s]));
+
+    const usersWithStats = users.map((u) => {
+      const stats = statsMap.get(u.id);
+      return {
+        ...u,
+        monthlyTokens: {
+          inputTokens: stats?.totalInputTokens ?? 0,
+          outputTokens: stats?.totalOutputTokens ?? 0,
+          totalTokens: (stats?.totalInputTokens ?? 0) + (stats?.totalOutputTokens ?? 0),
+          creditsUsed: stats?.totalCreditsUsed ?? 0,
+          usageCount: stats?.usageCount ?? 0,
+        },
+      };
+    });
+
+    return NextResponse.json({ users: usersWithStats });
   } catch (error) {
     console.error("GET /api/users error:", error);
     return NextResponse.json({ error: "取得用戶列表失敗" }, { status: 500 });

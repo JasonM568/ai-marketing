@@ -9,6 +9,33 @@ interface User {
   name: string;
   role: string;
   createdAt: string;
+  lastLoginAt: string | null;
+  monthlyTokens: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    creditsUsed: number;
+    usageCount: number;
+  };
+}
+
+function formatTimeAgo(dateStr: string | null): string {
+  if (!dateStr) return "尚未登入";
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "剛剛";
+  if (mins < 60) return `${mins} 分鐘前`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} 小時前`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} 天前`;
+  return new Date(dateStr).toLocaleDateString("zh-TW");
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return String(n);
 }
 
 const ROLE_MAP: Record<string, { label: string; cls: string }> = {
@@ -238,11 +265,12 @@ export default function UsersPage() {
               key={u.id}
               className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between hover:border-white/20 transition-colors"
             >
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-lg">
+              {/* Left: Avatar + Info */}
+              <div className="flex items-center gap-4 min-w-0 flex-1">
+                <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-lg shrink-0">
                   {u.role === "admin" ? "👑" : u.role === "master" ? "🛡️" : u.role === "subscriber" ? "⭐" : "✏️"}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-white font-medium">{u.name || "—"}</span>
                     <span className={`text-[10px] px-2 py-0.5 rounded-full border ${ROLE_MAP[u.role]?.cls || ROLE_MAP.editor.cls}`}>
@@ -254,11 +282,35 @@ export default function UsersPage() {
                       </span>
                     )}
                   </div>
-                  <p className="text-gray-500 text-sm">{u.email}</p>
+                  <p className="text-gray-500 text-sm truncate">{u.email}</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              {/* Middle: Stats (desktop only) */}
+              <div className="hidden md:flex items-center gap-6 px-4 shrink-0">
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-600">上線時間</p>
+                  <p className="text-sm text-gray-400">{formatTimeAgo(u.lastLoginAt)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-600">本月 Token</p>
+                  <p className="text-sm text-gray-400">
+                    {u.monthlyTokens?.totalTokens > 0 ? (
+                      <>
+                        <span className="text-white font-medium">{formatTokens(u.monthlyTokens.totalTokens)}</span>
+                        <span className="text-gray-600 text-xs ml-1">
+                          ({formatTokens(u.monthlyTokens.inputTokens)}↑ {formatTokens(u.monthlyTokens.outputTokens)}↓)
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-gray-600">—</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* Right: Actions */}
+              <div className="flex items-center gap-2 shrink-0">
                 {u.role === "subscriber" && (
                   <>
                     <button

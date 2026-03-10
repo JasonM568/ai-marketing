@@ -29,6 +29,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "帳號或密碼錯誤" }, { status: 401 });
     }
 
+    // Record last login time
+    await db
+      .update(adminUsers)
+      .set({ lastLoginAt: new Date() })
+      .where(eq(adminUsers.id, user.id));
+
     const token = await signToken({
       userId: user.id,
       email: user.email,

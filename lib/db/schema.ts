@@ -10,6 +10,7 @@ export const adminUsers = pgTable("admin_users", {
   role: varchar("role", { length: 20 }).default("admin").notNull(),
   planId: varchar("plan_id", { length: 20 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastLoginAt: timestamp("last_login_at"),
 });
 
 export const brands = pgTable("brands", {
