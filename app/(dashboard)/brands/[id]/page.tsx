@@ -479,8 +479,8 @@ export default function BrandDetailPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-5 overflow-x-auto pb-1">
+      {/* Tabs — RWD: mobile 橫滑, tablet+ 自動換行兩列 */}
+      <div className="flex gap-2 mb-5 overflow-x-auto sm:overflow-visible flex-nowrap sm:flex-wrap pb-2 sm:pb-0">
         {visibleTabs.map((tab) => (
           <button
             key={tab.id}
@@ -489,12 +489,12 @@ export default function BrandDetailPage() {
               setEditing(false);
               setActiveTab(tab.id);
             }}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${activeTab === tab.id
-              ? "bg-blue-600/15 text-blue-400 border border-blue-500/25"
-              : "text-gray-500 hover:text-gray-300 hover:bg-white/5 border border-transparent"
+            className={`flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap transition-all ${activeTab === tab.id
+              ? "bg-blue-600/20 text-blue-300 border border-blue-500/30 shadow-sm shadow-blue-500/10"
+              : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.07] border border-white/[0.06]"
               }`}
           >
-            <span>{tab.icon}</span>
+            <span className="text-sm sm:text-base">{tab.icon}</span>
             <span>{tab.label}</span>
           </button>
         ))}
