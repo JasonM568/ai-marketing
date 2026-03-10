@@ -108,12 +108,12 @@ export default function DashboardLayout({
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-gray-900 border-r border-white/10 z-50 transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed top-0 left-0 h-full w-64 bg-gray-900 border-r border-white/10 z-50 flex flex-col transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
           } lg:translate-x-0`}
       >
         {/* Logo */}
         <div className="p-5 border-b border-white/10">
-          <Link href="/workspace" className="flex items-center gap-2">
+          <Link href="/dashboard" className="flex items-center gap-2">
             <span className="text-2xl">🤖</span>
             <div>
               <p className="font-bold text-white text-sm">AI Marketing Agent</p>
@@ -122,8 +122,8 @@ export default function DashboardLayout({
           </Link>
         </div>
 
-        {/* Navigation */}
-        <nav className="p-3 space-y-1">
+        {/* Navigation — scrollable for growing menu */}
+        <nav className="p-3 space-y-1 overflow-y-auto flex-1">
           {navItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
@@ -147,7 +147,7 @@ export default function DashboardLayout({
         </nav>
 
         {/* Bottom */}
-        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-white/10">
+        <div className="mt-auto p-3 border-t border-white/10">
           <div className="flex items-center justify-between px-3 py-2">
             <div>
               <p className="text-sm text-gray-300">{session?.email?.split("@")[0]}</p>

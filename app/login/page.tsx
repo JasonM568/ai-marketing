@@ -28,7 +28,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/workspace");
+      router.push("/dashboard");
     } catch {
       setError("網路錯誤，請重試");
     } finally {
