@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 interface DraftItem {
@@ -31,14 +32,15 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 };
 
 export default function DraftsPage() {
+  const router = useRouter();
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterBrand, setFilterBrand] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterStatus] = useState("draft");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [totalCounts, setTotalCounts] = useState({ all: 0, draft: 0, reviewed: 0, published: 0 });
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     fetch("/api/brands", { credentials: "include" })
@@ -47,18 +49,13 @@ export default function DraftsPage() {
       .catch(console.error);
   }, []);
 
-  // Fetch total counts (unaffected by filters)
+  // Fetch draft count
   useEffect(() => {
-    fetch("/api/drafts", { credentials: "include" })
+    fetch("/api/drafts?status=draft", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
         const all = Array.isArray(data) ? data : [];
-        setTotalCounts({
-          all: all.length,
-          draft: all.filter((d: any) => d.status === "draft").length,
-          reviewed: all.filter((d: any) => d.status === "reviewed").length,
-          published: all.filter((d: any) => d.status === "published").length,
-        });
+        setTotalCount(all.length);
       })
       .catch(console.error);
   }, []);
@@ -149,39 +146,24 @@ export default function DraftsPage() {
     URL.revokeObjectURL(url);
   }
 
-  const counts = totalCounts;
-
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">草稿庫</h1>
-        <p className="text-gray-400 mt-1">管理所有 AI 產出的內容草稿</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">草稿區</h1>
+          <p className="text-gray-400 mt-1">編輯中的草稿，完成後輸出到文案完稿區</p>
+        </div>
+        <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-3 text-center">
+          <p className="text-2xl font-bold text-white">{totalCount}</p>
+          <p className="text-xs text-gray-500 mt-0.5">✏️ 草稿中</p>
+        </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-3">
-        {[
-          { key: "all", label: "全部", count: counts.all, icon: "📄" },
-          { key: "draft", label: "草稿", count: counts.draft, icon: "✏️" },
-          { key: "reviewed", label: "已審核", count: counts.reviewed, icon: "✅" },
-          { key: "published", label: "已發布", count: counts.published, icon: "🚀" },
-        ].map((stat) => (
-          <button
-            key={stat.key}
-            onClick={() => setFilterStatus(stat.key)}
-            className={`bg-gray-900 border rounded-xl p-4 text-left transition-all ${
-              filterStatus === stat.key
-                ? "border-blue-600"
-                : "border-gray-800 hover:border-gray-700"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500 text-sm">{stat.icon} {stat.label}</span>
-              <span className="text-2xl font-bold text-white">{stat.count}</span>
-            </div>
-          </button>
-        ))}
+      {/* Info Banner */}
+      <div className="bg-blue-950/30 border border-blue-800/40 rounded-xl px-4 py-3 flex items-center gap-3">
+        <span className="text-blue-400 text-sm">💡</span>
+        <p className="text-blue-300 text-sm">編輯完成後，點擊「完稿輸出 →」將草稿送入<button onClick={() => router.push("/copies")} className="underline hover:text-blue-200 ml-1">文案完稿區</button>供取用</p>
       </div>
 
       {/* Filters */}
@@ -275,6 +257,7 @@ function DraftCard({
   onDelete: (id: string) => void;
   onExport: (draft: DraftItem, format: "markdown" | "text") => void;
 }) {
+  const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const status = statusConfig[draft.status] || statusConfig.draft;
@@ -286,19 +269,10 @@ function DraftCard({
     setTimeout(() => setCopied(false), 2000);
   }
 
-  const nextStatus =
-    draft.status === "draft"
-      ? "reviewed"
-      : draft.status === "reviewed"
-      ? "published"
-      : null;
-
-  const nextStatusLabel =
-    draft.status === "draft"
-      ? "標記已審核"
-      : draft.status === "reviewed"
-      ? "標記已發布"
-      : null;
+  async function exportToFinalized() {
+    await onUpdateStatus(draft.id, "reviewed");
+    router.push("/copies");
+  }
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
@@ -387,23 +361,12 @@ function DraftCard({
                 ✏️ 編輯
               </Link>
 
-              {nextStatus && (
-                <button
-                  onClick={() => onUpdateStatus(draft.id, nextStatus)}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-lg transition-colors"
-                >
-                  ✓ {nextStatusLabel}
-                </button>
-              )}
-
-              {draft.status === "published" && (
-                <button
-                  onClick={() => onUpdateStatus(draft.id, "draft")}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg transition-colors"
-                >
-                  ↩ 退回草稿
-                </button>
-              )}
+              <button
+                onClick={exportToFinalized}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs bg-green-700/30 hover:bg-green-700/50 text-green-400 rounded-lg transition-colors font-medium"
+              >
+                完稿輸出 →
+              </button>
 
               <button
                 onClick={() => onDelete(draft.id)}

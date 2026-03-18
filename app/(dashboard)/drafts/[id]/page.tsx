@@ -105,6 +105,23 @@ export default function DraftDetailPage() {
     }
   }
 
+  async function exportToFinalized() {
+    if (!draft) return;
+    try {
+      const res = await fetch(`/api/drafts/${draft.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: "reviewed" }),
+      });
+      if (res.ok) {
+        router.push("/copies");
+      }
+    } catch (err) {
+      console.error("Export error:", err);
+    }
+  }
+
   async function deleteDraft() {
     if (!draft || !confirm("確定要刪除這份草稿嗎？")) return;
     try {
@@ -169,7 +186,7 @@ export default function DraftDetailPage() {
       {/* Breadcrumb */}
       <nav className="text-sm text-gray-500">
         <button onClick={() => router.push("/drafts")} className="hover:text-gray-300">
-          草稿庫
+          草稿區
         </button>
         <span className="mx-2">›</span>
         <span className="text-gray-300">{draft.topic || "未命名草稿"}</span>
@@ -234,6 +251,19 @@ export default function DraftDetailPage() {
         </div>
       </div>
 
+      {/* Finalized banner */}
+      {(draft.status === "reviewed" || draft.status === "published") && (
+        <div className="bg-amber-950/30 border border-amber-700/40 rounded-xl px-4 py-3 flex items-center justify-between">
+          <p className="text-amber-300 text-sm">⚠️ 此文案已在完稿區，編輯後請重新點「完稿輸出」更新</p>
+          <button
+            onClick={() => router.push("/copies")}
+            className="text-xs text-amber-400 hover:text-amber-200 underline ml-4 whitespace-nowrap"
+          >
+            前往完稿區 →
+          </button>
+        </div>
+      )}
+
       {/* Action Bar */}
       <div className="flex flex-wrap gap-2">
         {editing ? (
@@ -282,6 +312,22 @@ export default function DraftDetailPage() {
             >
               📥 純文字
             </button>
+            {draft.status === "draft" && (
+              <button
+                onClick={exportToFinalized}
+                className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white rounded-lg text-sm transition-colors font-medium"
+              >
+                完稿輸出 →
+              </button>
+            )}
+            {(draft.status === "reviewed" || draft.status === "published") && (
+              <button
+                onClick={exportToFinalized}
+                className="px-4 py-2 bg-green-700/50 hover:bg-green-700 text-green-300 rounded-lg text-sm transition-colors font-medium"
+              >
+                重新輸出 →
+              </button>
+            )}
             <button
               onClick={deleteDraft}
               className="px-4 py-2 bg-red-900/20 hover:bg-red-900/30 text-red-400 rounded-lg text-sm transition-colors ml-auto"
