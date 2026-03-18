@@ -278,8 +278,8 @@ export async function POST(request: NextRequest) {
 
           // ===== After streaming: get final token usage =====
           const finalMessage = await stream.finalMessage();
-          const inputTokens = finalMessage.usage?.input_tokens || 0;
-          const outputTokens = finalMessage.usage?.output_tokens || 0;
+          inputTokens = finalMessage.usage?.input_tokens || inputTokens;
+          outputTokens = finalMessage.usage?.output_tokens || outputTokens;
           const totalTokens = inputTokens + outputTokens;
 
           // ===== Non-subscriber: log token usage only (no credit deduction) =====
@@ -375,21 +375,6 @@ export async function POST(request: NextRequest) {
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
 
-          // Save token usage
-          const costUsd = (
-            inputTokens * INPUT_COST_PER_TOKEN +
-            outputTokens * OUTPUT_COST_PER_TOKEN
-          ).toFixed(6);
-          db.insert(apiUsage)
-            .values({
-              userId: user.userId,
-              conversationId: conversationId || null,
-              model: MODEL,
-              inputTokens,
-              outputTokens,
-              costUsd,
-            })
-            .catch(console.error);
         } catch (error) {
           console.error("Stream error:", error);
           controller.error(error);
