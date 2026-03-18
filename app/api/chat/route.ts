@@ -226,11 +226,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Pricing: claude-sonnet-4-20250514
+    // Input: $3 / 1M tokens, Output: $15 / 1M tokens
+    const MODEL = "claude-sonnet-4-20250514";
+    const INPUT_COST_PER_TOKEN = 3 / 1_000_000;
+    const OUTPUT_COST_PER_TOKEN = 15 / 1_000_000;
+
     // Return SSE stream
     const encoder = new TextEncoder();
 
     const readable = new ReadableStream({
       async start(controller) {
+        let inputTokens = 0;
+        let outputTokens = 0;
         try {
           // Send conversationId + followup warning to frontend
           const metaData: Record<string, unknown> = {};
@@ -253,6 +261,12 @@ export async function POST(request: NextRequest) {
 
           // Stream response
           for await (const event of stream) {
+            if (event.type === "message_start") {
+              inputTokens = event.message.usage.input_tokens;
+            }
+            if (event.type === "message_delta" && event.usage) {
+              outputTokens = event.usage.output_tokens;
+            }
             if (
               event.type === "content_block_delta" &&
               event.delta.type === "text_delta"
@@ -360,6 +374,22 @@ export async function POST(request: NextRequest) {
 
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
+
+          // Save token usage
+          const costUsd = (
+            inputTokens * INPUT_COST_PER_TOKEN +
+            outputTokens * OUTPUT_COST_PER_TOKEN
+          ).toFixed(6);
+          db.insert(apiUsage)
+            .values({
+              userId: user.userId,
+              conversationId: conversationId || null,
+              model: MODEL,
+              inputTokens,
+              outputTokens,
+              costUsd,
+            })
+            .catch(console.error);
         } catch (error) {
           console.error("Stream error:", error);
           controller.error(error);

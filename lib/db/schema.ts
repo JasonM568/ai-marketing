@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, boolean, integer, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, text, boolean, integer, timestamp, jsonb, numeric, uniqueIndex } from "drizzle-orm/pg-core";
 
 // ===== 既有表 =====
 

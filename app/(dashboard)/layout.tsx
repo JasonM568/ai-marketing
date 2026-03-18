@@ -128,6 +128,7 @@ export default function DashboardLayout({
     { href: "/my-plan", label: "我的方案", icon: "💳", desc: "點數與用量", roles: ["subscriber"] },
     { href: "/billing", label: "帳單紀錄", icon: "🧾", desc: "付款記錄", roles: ["subscriber"] },
     { href: "/users", label: "帳號管理", icon: "👥", desc: "用戶與權限", roles: ["admin", "master"] },
+    { href: "/usage", label: "API 用量", icon: "📈", desc: "Token 花費統計", roles: ["admin", "master"] },
   ];
 
   // Filter nav items by role — admin sees everything
