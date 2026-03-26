@@ -75,36 +75,19 @@ export async function POST(
       let publishedPostId: string;
       const platform = post.platform.toLowerCase();
 
+      const imgs = Array.isArray(post.imageUrls) && (post.imageUrls as string[]).length > 0
+        ? (post.imageUrls as string[])
+        : undefined;
+
       if (platform === "facebook" || platform === "fb") {
-        if (!account.pageId) {
-          throw new Error("Facebook page ID not found");
-        }
-        publishedPostId = await postToFacebook(
-          account.pageId,
-          token,
-          post.content,
-          post.imageUrl || undefined
-        );
+        if (!account.pageId) throw new Error("Facebook page ID not found");
+        publishedPostId = await postToFacebook(account.pageId, token, post.content, imgs);
       } else if (platform === "instagram" || platform === "ig") {
-        if (!account.platformUserId) {
-          throw new Error("Instagram user ID not found");
-        }
-        publishedPostId = await postToInstagram(
-          account.platformUserId,
-          token,
-          post.content,
-          post.imageUrl || undefined
-        );
+        if (!account.platformUserId) throw new Error("Instagram user ID not found");
+        publishedPostId = await postToInstagram(account.platformUserId, token, post.content, imgs);
       } else if (platform === "threads") {
-        if (!account.platformUserId) {
-          throw new Error("Threads user ID not found");
-        }
-        publishedPostId = await postToThreads(
-          account.platformUserId,
-          token,
-          post.content,
-          post.imageUrl || undefined
-        );
+        if (!account.platformUserId) throw new Error("Threads user ID not found");
+        publishedPostId = await postToThreads(account.platformUserId, token, post.content, imgs);
       } else {
         throw new Error(`不支援的平台: ${post.platform}`);
       }

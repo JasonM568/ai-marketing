@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
         brandId: scheduledPosts.brandId,
         platform: scheduledPosts.platform,
         content: scheduledPosts.content,
-        imageUrl: scheduledPosts.imageUrl,
+        imageUrls: scheduledPosts.imageUrls,
         scheduledAt: scheduledPosts.scheduledAt,
         status: scheduledPosts.status,
         publishedPostId: scheduledPosts.publishedPostId,
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { brandId, socialAccountId, platform, content, imageUrl, scheduledAt, draftId } = body;
+    const { brandId, socialAccountId, platform, content, imageUrls, scheduledAt, draftId } = body;
 
     if (!brandId || !socialAccountId || !platform || !content || !scheduledAt) {
       return NextResponse.json({ error: "缺少必要欄位" }, { status: 400 });
@@ -89,9 +89,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "社群帳號不存在或已停用" }, { status: 400 });
     }
 
-    // Instagram requires an image
+    // Instagram requires at least one image
     const platformLower = platform.toLowerCase();
-    if ((platformLower === "instagram" || platformLower === "ig") && !imageUrl) {
+    const urls: string[] = Array.isArray(imageUrls) ? imageUrls.filter(Boolean) : [];
+    if ((platformLower === "instagram" || platformLower === "ig") && urls.length === 0) {
       return NextResponse.json(
         { error: "Instagram 貼文必須附帶圖片" },
         { status: 400 }
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
         socialAccountId,
         platform,
         content,
-        imageUrl: imageUrl || null,
+        imageUrls: urls.length > 0 ? urls : [],
         scheduledAt: new Date(scheduledAt),
         status: "queued",
         createdBy: user.userId,

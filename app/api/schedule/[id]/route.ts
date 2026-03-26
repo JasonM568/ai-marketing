@@ -54,7 +54,7 @@ export async function PUT(
 
     if (body.content) updates.content = body.content;
     if (body.scheduledAt) updates.scheduledAt = new Date(body.scheduledAt);
-    if (body.imageUrl !== undefined) updates.imageUrl = body.imageUrl;
+    if (body.imageUrls !== undefined) updates.imageUrls = Array.isArray(body.imageUrls) ? body.imageUrls : [];
 
     // Allow confirming (pending → queued) or retrying (failed → queued)
     if (body.status === "queued") {

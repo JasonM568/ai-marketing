@@ -16,7 +16,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { brandId, socialAccountId, platform, content, imageUrl, draftId } = body;
+    const { brandId, socialAccountId, platform, content, imageUrls: rawImageUrls, draftId } = body;
+    const imageUrls: string[] = Array.isArray(rawImageUrls) ? rawImageUrls.filter(Boolean) : [];
 
     if (!brandId || !socialAccountId || !platform || !content) {
       return NextResponse.json({ error: "缺少必要欄位" }, { status: 400 });
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     // Instagram requires an image
     const platformLower = platform.toLowerCase();
-    if ((platformLower === "instagram" || platformLower === "ig") && !imageUrl) {
+    if ((platformLower === "instagram" || platformLower === "ig") && imageUrls.length === 0) {
       return NextResponse.json(
         { error: "Instagram 貼文必須附帶圖片" },
         { status: 400 }
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
         socialAccountId,
         platform,
         content,
-        imageUrl: imageUrl || null,
+        imageUrls: imageUrls.length > 0 ? imageUrls : [],
         scheduledAt: now,
         status: "posting",
         createdBy: user.userId,
@@ -76,30 +77,16 @@ export async function POST(request: NextRequest) {
     try {
       let publishedPostId: string;
 
+      const imgs = imageUrls.length > 0 ? imageUrls : undefined;
       if (platformLower === "facebook" || platformLower === "fb") {
         if (!account.pageId) throw new Error("Facebook page ID not found");
-        publishedPostId = await postToFacebook(
-          account.pageId,
-          token,
-          content,
-          imageUrl || undefined
-        );
+        publishedPostId = await postToFacebook(account.pageId, token, content, imgs);
       } else if (platformLower === "instagram" || platformLower === "ig") {
         if (!account.platformUserId) throw new Error("Instagram user ID not found");
-        publishedPostId = await postToInstagram(
-          account.platformUserId,
-          token,
-          content,
-          imageUrl || undefined
-        );
+        publishedPostId = await postToInstagram(account.platformUserId, token, content, imgs);
       } else if (platformLower === "threads") {
         if (!account.platformUserId) throw new Error("Threads user ID not found");
-        publishedPostId = await postToThreads(
-          account.platformUserId,
-          token,
-          content,
-          imageUrl || undefined
-        );
+        publishedPostId = await postToThreads(account.platformUserId, token, content, imgs);
       } else {
         throw new Error(`不支援的平台: ${platform}`);
       }

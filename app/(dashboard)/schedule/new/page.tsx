@@ -58,10 +58,11 @@ export default function NewSchedulePage() {
   >([]);
   const [publishMode, setPublishMode] = useState<"schedule" | "now">("schedule");
   const [scheduledAt, setScheduledAt] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [urlInputValue, setUrlInputValue] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load brands
@@ -166,15 +167,23 @@ export default function NewSchedulePage() {
     return platformIcons[platform.toLowerCase()] || "📱";
   }
 
-  // Image upload handler
-  const handleImageUpload = useCallback(async (file: File) => {
+  // Image upload handler — supports multiple files
+  const handleImageUpload = useCallback(async (files: File[]) => {
     const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-    if (!allowedTypes.includes(file.type)) {
-      setError("僅支援 JPG、PNG、WebP、GIF 圖片格式");
-      return;
+    for (const file of files) {
+      if (!allowedTypes.includes(file.type)) {
+        setError(`${file.name}：僅支援 JPG、PNG、WebP、GIF 圖片格式`);
+        return;
+      }
+      if (file.size > 4.5 * 1024 * 1024) {
+        setError(`${file.name}：圖片大小不能超過 4.5MB`);
+        return;
+      }
     }
-    if (file.size > 4.5 * 1024 * 1024) {
-      setError("圖片大小不能超過 4.5MB");
+
+    const totalCount = imageUrls.length + files.length;
+    if (totalCount > 10) {
+      setError("最多只能上傳 10 張圖片");
       return;
     }
 
@@ -182,7 +191,9 @@ export default function NewSchedulePage() {
     setError("");
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      for (const file of files) {
+        formData.append("files", file);
+      }
       const res = await fetch("/api/upload", {
         method: "POST",
         credentials: "include",
@@ -193,20 +204,20 @@ export default function NewSchedulePage() {
         setError(data.error || "圖片上傳失敗");
         return;
       }
-      const { url } = await res.json();
-      setImageUrl(url);
+      const { urls } = await res.json();
+      setImageUrls((prev) => [...prev, ...urls]);
     } catch {
       setError("圖片上傳失敗，請重試");
     } finally {
       setUploading(false);
     }
-  }, []);
+  }, [imageUrls.length]);
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragActive(false);
-    const file = e.dataTransfer.files[0];
-    if (file) handleImageUpload(file);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) handleImageUpload(files);
   }
 
   function handleDragOver(e: React.DragEvent) {
@@ -223,7 +234,11 @@ export default function NewSchedulePage() {
   const hasInstagramWithoutImage =
     selectedAccounts.some(
       (a) => a.platform.toLowerCase() === "instagram" || a.platform.toLowerCase() === "ig"
-    ) && !imageUrl;
+    ) && imageUrls.length === 0;
+
+  function removeImage(index: number) {
+    setImageUrls((prev) => prev.filter((_, i) => i !== index));
+  }
 
   function canProceed() {
     switch (step) {
@@ -256,7 +271,7 @@ export default function NewSchedulePage() {
             socialAccountId: acc.accountId,
             platform: acc.platform,
             content,
-            imageUrl: imageUrl || null,
+            imageUrls: imageUrls.length > 0 ? imageUrls : [],
             draftId: selectedDraftId,
           };
 
@@ -477,40 +492,49 @@ export default function NewSchedulePage() {
                   ) ? (
                     <span className="text-yellow-400 text-xs ml-1.5">（Instagram 必須附圖）</span>
                   ) : (
-                    <span className="text-gray-600 text-xs ml-1.5">（可選）</span>
+                    <span className="text-gray-600 text-xs ml-1.5">（可選，最多 10 張）</span>
                   )}
                 </label>
 
-                {imageUrl ? (
-                  /* Image preview */
-                  <div className="relative rounded-xl border border-gray-800 overflow-hidden bg-gray-950">
-                    <img
-                      src={imageUrl}
-                      alt="預覽圖片"
-                      className="w-full max-h-64 object-contain"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setImageUrl("")}
-                      className="absolute top-2 right-2 w-7 h-7 bg-gray-900/80 hover:bg-red-600/80 text-gray-400 hover:text-white rounded-full flex items-center justify-center transition-colors text-sm"
-                    >
-                      ✕
-                    </button>
+                {/* Image preview grid */}
+                {imageUrls.length > 0 && (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
+                    {imageUrls.map((url, index) => (
+                      <div key={index} className="relative rounded-lg border border-gray-800 overflow-hidden bg-gray-950 aspect-square">
+                        <img
+                          src={url}
+                          alt={`圖片 ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="absolute top-1 right-1 w-6 h-6 bg-gray-900/80 hover:bg-red-600/80 text-gray-400 hover:text-white rounded-full flex items-center justify-center transition-colors text-xs"
+                        >
+                          ✕
+                        </button>
+                        <span className="absolute bottom-1 left-1 text-[10px] bg-gray-900/80 text-gray-400 px-1.5 py-0.5 rounded">
+                          {index + 1}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ) : uploading ? (
+                )}
+
+                {uploading ? (
                   /* Upload progress */
                   <div className="flex flex-col items-center justify-center py-8 rounded-xl border-2 border-dashed border-blue-500/30 bg-blue-950/10">
                     <div className="w-6 h-6 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin mb-2" />
                     <p className="text-sm text-blue-400">上傳中...</p>
                   </div>
-                ) : (
+                ) : imageUrls.length < 10 ? (
                   /* Drag & drop zone */
                   <div
                     onDrop={handleDrop}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onClick={() => fileInputRef.current?.click()}
-                    className={`flex flex-col items-center justify-center py-8 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${
+                    className={`flex flex-col items-center justify-center py-6 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${
                       dragActive
                         ? "border-blue-500 bg-blue-950/20"
                         : "border-gray-700 hover:border-gray-600 bg-gray-950"
@@ -521,24 +545,34 @@ export default function NewSchedulePage() {
                       拖曳圖片到這裡，或<span className="text-blue-400">點擊選擇</span>
                     </p>
                     <p className="text-[11px] text-gray-600 mt-1">
-                      支援 JPG、PNG、WebP、GIF（最大 4.5MB）
+                      支援 JPG、PNG、WebP、GIF（每張最大 4.5MB，最多 10 張）
                     </p>
+                    {imageUrls.length > 0 && (
+                      <p className="text-[11px] text-blue-400/70 mt-0.5">
+                        已上傳 {imageUrls.length} / 10 張
+                      </p>
+                    )}
                     <input
                       ref={fileInputRef}
                       type="file"
                       accept="image/jpeg,image/png,image/webp,image/gif"
+                      multiple
                       className="hidden"
                       onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleImageUpload(file);
+                        const files = Array.from(e.target.files || []);
+                        if (files.length > 0) handleImageUpload(files);
                         e.target.value = "";
                       }}
                     />
                   </div>
+                ) : (
+                  <p className="text-xs text-gray-500 text-center py-2">
+                    已達上限 10 張圖片
+                  </p>
                 )}
 
                 {/* URL fallback toggle */}
-                {!imageUrl && !uploading && (
+                {!uploading && imageUrls.length < 10 && (
                   <div className="mt-2">
                     <button
                       type="button"
@@ -548,13 +582,27 @@ export default function NewSchedulePage() {
                       {showUrlInput ? "收起" : "或貼上圖片網址 ›"}
                     </button>
                     {showUrlInput && (
-                      <input
-                        type="url"
-                        value={imageUrl}
-                        onChange={(e) => setImageUrl(e.target.value)}
-                        placeholder="https://example.com/image.jpg"
-                        className="w-full mt-1.5 px-4 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-white placeholder:text-gray-700 focus:outline-none focus:border-blue-500 transition-colors text-sm"
-                      />
+                      <div className="flex gap-2 mt-1.5">
+                        <input
+                          type="url"
+                          value={urlInputValue}
+                          onChange={(e) => setUrlInputValue(e.target.value)}
+                          placeholder="https://example.com/image.jpg"
+                          className="flex-1 px-4 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-white placeholder:text-gray-700 focus:outline-none focus:border-blue-500 transition-colors text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (urlInputValue.trim()) {
+                              setImageUrls((prev) => [...prev, urlInputValue.trim()]);
+                              setUrlInputValue("");
+                            }
+                          }}
+                          className="px-3 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-xl transition-colors"
+                        >
+                          加入
+                        </button>
+                      </div>
                     )}
                   </div>
                 )}
@@ -838,17 +886,22 @@ export default function NewSchedulePage() {
                     {selectedAccounts.length} 個平台
                   </span>
                 </div>
-                {imageUrl ? (
+                {imageUrls.length > 0 ? (
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">圖片</span>
-                      <span className="text-green-400 text-xs">✅ 已附圖</span>
+                      <span className="text-green-400 text-xs">✅ {imageUrls.length} 張圖片</span>
                     </div>
-                    <img
-                      src={imageUrl}
-                      alt="附圖預覽"
-                      className="w-full max-h-48 object-contain rounded-lg border border-gray-800"
-                    />
+                    <div className="grid grid-cols-4 gap-2">
+                      {imageUrls.map((url, i) => (
+                        <img
+                          key={i}
+                          src={url}
+                          alt={`附圖 ${i + 1}`}
+                          className="w-full aspect-square object-cover rounded-lg border border-gray-800"
+                        />
+                      ))}
+                    </div>
                   </div>
                 ) : hasInstagramWithoutImage ? (
                   <div className="flex justify-between text-sm">

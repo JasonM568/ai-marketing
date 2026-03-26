@@ -11,7 +11,7 @@ interface ScheduledPost {
   socialAccountId: string;
   platform: string;
   content: string;
-  imageUrl: string | null;
+  imageUrls: string[] | null;
   scheduledAt: string;
   status: string;
   publishedPostId: string | null;
@@ -286,10 +286,19 @@ export default function ScheduleDetailPage() {
             {post.content}
           </pre>
         </div>
-        {post.imageUrl && (
+        {post.imageUrls && post.imageUrls.length > 0 && (
           <div className="mt-3">
-            <span className="text-sm text-gray-500">附圖：</span>
-            <span className="text-sm text-blue-400 break-all">{post.imageUrl}</span>
+            <span className="text-sm text-gray-500 block mb-2">附圖（{post.imageUrls.length} 張）：</span>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {post.imageUrls.map((url, i) => (
+                <img
+                  key={i}
+                  src={url}
+                  alt={`附圖 ${i + 1}`}
+                  className="w-full aspect-square object-cover rounded-lg border border-gray-800"
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>

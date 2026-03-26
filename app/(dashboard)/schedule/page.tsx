@@ -13,7 +13,7 @@ interface ScheduledPost {
   brandId: string;
   platform: string;
   content: string;
-  imageUrl: string | null;
+  imageUrls: string[] | null;
   scheduledAt: string;
   status: string;
   publishedPostId: string | null;

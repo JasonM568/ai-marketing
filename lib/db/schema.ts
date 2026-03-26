@@ -176,7 +176,7 @@ export const scheduledPosts = pgTable("scheduled_posts", {
   socialAccountId: uuid("social_account_id").notNull(),
   platform: varchar("platform", { length: 20 }).notNull(),
   content: text("content").notNull(),
-  imageUrl: text("image_url"),
+  imageUrls: jsonb("image_urls").default([]),
   scheduledAt: timestamp("scheduled_at").notNull(),
   status: varchar("status", { length: 20 }).default("pending").notNull(),
   publishedPostId: varchar("published_post_id", { length: 200 }),

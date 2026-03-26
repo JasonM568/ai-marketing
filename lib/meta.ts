@@ -154,28 +154,71 @@ export async function postToFacebook(
   pageId: string,
   pageToken: string,
   content: string,
-  imageUrl?: string
+  imageUrls?: string[]
 ): Promise<string> {
-  let url: string;
-  let body: Record<string, string>;
-
-  if (imageUrl) {
-    url = `${META_GRAPH_API}/${pageId}/photos`;
-    body = { message: content, url: imageUrl, access_token: pageToken };
-  } else {
-    url = `${META_GRAPH_API}/${pageId}/feed`;
-    body = { message: content, access_token: pageToken };
+  // No images — text-only post
+  if (!imageUrls || imageUrls.length === 0) {
+    const res = await fetch(`${META_GRAPH_API}/${pageId}/feed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: content, access_token: pageToken }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`FB post failed: ${err}`);
+    }
+    const data = await res.json();
+    return data.id || data.post_id;
   }
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+  // Single image — simple photo post
+  if (imageUrls.length === 1) {
+    const res = await fetch(`${META_GRAPH_API}/${pageId}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: content, url: imageUrls[0], access_token: pageToken }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`FB post failed: ${err}`);
+    }
+    const data = await res.json();
+    return data.id || data.post_id;
+  }
+
+  // Multiple images — upload as unpublished photos, then create feed post with attached_media
+  const photoIds: string[] = [];
+  for (const url of imageUrls) {
+    const res = await fetch(`${META_GRAPH_API}/${pageId}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, published: false, access_token: pageToken }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`FB unpublished photo upload failed: ${err}`);
+    }
+    const data = await res.json();
+    photoIds.push(data.id);
+  }
+
+  // Create feed post with attached_media
+  const feedBody: Record<string, any> = {
+    message: content,
+    access_token: pageToken,
+  };
+  photoIds.forEach((id, i) => {
+    feedBody[`attached_media[${i}]`] = JSON.stringify({ media_fbid: id });
   });
 
+  const res = await fetch(`${META_GRAPH_API}/${pageId}/feed`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(feedBody),
+  });
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`FB post failed: ${err}`);
+    throw new Error(`FB multi-photo post failed: ${err}`);
   }
   const data = await res.json();
   return data.id || data.post_id;
@@ -185,42 +228,93 @@ export async function postToInstagram(
   igUserId: string,
   token: string,
   content: string,
-  imageUrl?: string
+  imageUrls?: string[]
 ): Promise<string> {
-  if (!imageUrl) {
-    throw new Error("Instagram posts require an image URL");
+  if (!imageUrls || imageUrls.length === 0) {
+    throw new Error("Instagram posts require at least one image URL");
   }
 
-  // Step 1: Create media container
-  const containerRes = await fetch(`${META_GRAPH_API}/${igUserId}/media`, {
+  // Single image — standard image post
+  if (imageUrls.length === 1) {
+    const containerRes = await fetch(`${META_GRAPH_API}/${igUserId}/media`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        image_url: imageUrls[0],
+        caption: content,
+        access_token: token,
+      }),
+    });
+    if (!containerRes.ok) {
+      const err = await containerRes.text();
+      throw new Error(`IG container creation failed: ${err}`);
+    }
+    const container = await containerRes.json();
+
+    const publishRes = await fetch(`${META_GRAPH_API}/${igUserId}/media_publish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ creation_id: container.id, access_token: token }),
+    });
+    if (!publishRes.ok) {
+      const err = await publishRes.text();
+      throw new Error(`IG publish failed: ${err}`);
+    }
+    const published = await publishRes.json();
+    return published.id;
+  }
+
+  // Multiple images — carousel post (2-10 images)
+  if (imageUrls.length > 10) {
+    throw new Error("Instagram carousel supports up to 10 images");
+  }
+
+  // Step 1: Create individual image containers (no caption on children)
+  const childIds: string[] = [];
+  for (const url of imageUrls) {
+    const res = await fetch(`${META_GRAPH_API}/${igUserId}/media`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        image_url: url,
+        is_carousel_item: true,
+        access_token: token,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`IG carousel item creation failed: ${err}`);
+    }
+    const data = await res.json();
+    childIds.push(data.id);
+  }
+
+  // Step 2: Create carousel container
+  const carouselRes = await fetch(`${META_GRAPH_API}/${igUserId}/media`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      image_url: imageUrl,
+      media_type: "CAROUSEL",
       caption: content,
+      children: childIds,
       access_token: token,
     }),
   });
-
-  if (!containerRes.ok) {
-    const err = await containerRes.text();
-    throw new Error(`IG container creation failed: ${err}`);
+  if (!carouselRes.ok) {
+    const err = await carouselRes.text();
+    throw new Error(`IG carousel container creation failed: ${err}`);
   }
-  const container = await containerRes.json();
+  const carousel = await carouselRes.json();
 
-  // Step 2: Publish
+  // Step 3: Publish carousel
   const publishRes = await fetch(`${META_GRAPH_API}/${igUserId}/media_publish`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      creation_id: container.id,
-      access_token: token,
-    }),
+    body: JSON.stringify({ creation_id: carousel.id, access_token: token }),
   });
-
   if (!publishRes.ok) {
     const err = await publishRes.text();
-    throw new Error(`IG publish failed: ${err}`);
+    throw new Error(`IG carousel publish failed: ${err}`);
   }
   const published = await publishRes.json();
   return published.id;
@@ -230,49 +324,108 @@ export async function postToThreads(
   threadsUserId: string,
   token: string,
   content: string,
-  imageUrl?: string
+  imageUrls?: string[]
 ): Promise<string> {
   // Threads uses graph.threads.net, NOT graph.facebook.com
-  // Threads API requires form-encoded params (not JSON body) for access_token
   const THREADS_API = "https://graph.threads.net/v1.0";
 
-  // Step 1: Create threads media container
-  const containerParams = new URLSearchParams({
-    text: content,
-    media_type: imageUrl ? "IMAGE" : "TEXT",
-    access_token: token,
-  });
-  if (imageUrl) {
-    containerParams.set("image_url", imageUrl);
+  // No images or single image — standard post
+  if (!imageUrls || imageUrls.length <= 1) {
+    const containerParams = new URLSearchParams({
+      text: content,
+      media_type: imageUrls && imageUrls.length === 1 ? "IMAGE" : "TEXT",
+      access_token: token,
+    });
+    if (imageUrls && imageUrls.length === 1) {
+      containerParams.set("image_url", imageUrls[0]);
+    }
+
+    const containerRes = await fetch(`${THREADS_API}/${threadsUserId}/threads`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: containerParams.toString(),
+    });
+    if (!containerRes.ok) {
+      const err = await containerRes.text();
+      throw new Error(`Threads container creation failed: ${err}`);
+    }
+    const container = await containerRes.json();
+
+    const publishParams = new URLSearchParams({
+      creation_id: container.id,
+      access_token: token,
+    });
+    const publishRes = await fetch(`${THREADS_API}/${threadsUserId}/threads_publish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: publishParams.toString(),
+    });
+    if (!publishRes.ok) {
+      const err = await publishRes.text();
+      throw new Error(`Threads publish failed: ${err}`);
+    }
+    const published = await publishRes.json();
+    return published.id;
   }
 
-  const containerRes = await fetch(`${THREADS_API}/${threadsUserId}/threads`, {
+  // Multiple images — carousel post
+  if (imageUrls.length > 10) {
+    throw new Error("Threads carousel supports up to 10 images");
+  }
+
+  // Step 1: Create individual image containers
+  const childIds: string[] = [];
+  for (const url of imageUrls) {
+    const params = new URLSearchParams({
+      media_type: "IMAGE",
+      image_url: url,
+      is_carousel_item: "true",
+      access_token: token,
+    });
+    const res = await fetch(`${THREADS_API}/${threadsUserId}/threads`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Threads carousel item creation failed: ${err}`);
+    }
+    const data = await res.json();
+    childIds.push(data.id);
+  }
+
+  // Step 2: Create carousel container
+  const carouselParams = new URLSearchParams({
+    media_type: "CAROUSEL",
+    text: content,
+    children: childIds.join(","),
+    access_token: token,
+  });
+  const carouselRes = await fetch(`${THREADS_API}/${threadsUserId}/threads`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: containerParams.toString(),
+    body: carouselParams.toString(),
   });
-
-  if (!containerRes.ok) {
-    const err = await containerRes.text();
-    throw new Error(`Threads container creation failed: ${err}`);
+  if (!carouselRes.ok) {
+    const err = await carouselRes.text();
+    throw new Error(`Threads carousel container creation failed: ${err}`);
   }
-  const container = await containerRes.json();
+  const carousel = await carouselRes.json();
 
-  // Step 2: Publish
+  // Step 3: Publish
   const publishParams = new URLSearchParams({
-    creation_id: container.id,
+    creation_id: carousel.id,
     access_token: token,
   });
-
   const publishRes = await fetch(`${THREADS_API}/${threadsUserId}/threads_publish`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: publishParams.toString(),
   });
-
   if (!publishRes.ok) {
     const err = await publishRes.text();
-    throw new Error(`Threads publish failed: ${err}`);
+    throw new Error(`Threads carousel publish failed: ${err}`);
   }
   const published = await publishRes.json();
   return published.id;

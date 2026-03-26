@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { socialAccounts } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
+import { canAccessBrand } from "@/lib/brand-access";
 
 export async function GET(
   request: NextRequest,
@@ -33,6 +34,12 @@ export async function GET(
       return NextResponse.json({ error: "帳號不存在" }, { status: 404 });
     }
 
+    // Verify brand access
+    const hasAccess = await canAccessBrand(user, account.brandId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "權限不足" }, { status: 403 });
+    }
+
     return NextResponse.json(account);
   } catch (error) {
     console.error("Get social account error:", error);
@@ -51,6 +58,22 @@ export async function DELETE(
     }
 
     const { id } = await params;
+
+    // Fetch account and verify brand access
+    const [account] = await db
+      .select({ brandId: socialAccounts.brandId })
+      .from(socialAccounts)
+      .where(eq(socialAccounts.id, id));
+
+    if (!account) {
+      return NextResponse.json({ error: "帳號不存在" }, { status: 404 });
+    }
+
+    const hasAccess = await canAccessBrand(user, account.brandId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "權限不足" }, { status: 403 });
+    }
+
     await db
       .update(socialAccounts)
       .set({ status: "disconnected", updatedAt: new Date() })
