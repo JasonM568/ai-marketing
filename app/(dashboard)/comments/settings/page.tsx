@@ -27,12 +27,10 @@ interface Brand {
   name: string;
 }
 
-interface ScheduledPost {
+interface AvailablePost {
   id: string;
   content: string;
-  platform: string;
-  publishedPostId: string | null;
-  status: string;
+  createdTime: string | null;
 }
 
 export default function CommentSettingsPage() {
@@ -40,7 +38,9 @@ export default function CommentSettingsPage() {
   const [selectedBrand, setSelectedBrand] = useState("");
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [monitors, setMonitors] = useState<Monitor[]>([]);
-  const [publishedPosts, setPublishedPosts] = useState<ScheduledPost[]>([]);
+  const [availablePosts, setAvailablePosts] = useState<AvailablePost[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [postsError, setPostsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [userPlan, setUserPlan] = useState("");
 
@@ -60,9 +60,31 @@ export default function CommentSettingsPage() {
     if (selectedBrand) {
       fetchMonitors();
       fetchAccounts();
-      fetchPublishedPosts();
     }
   }, [selectedBrand]);
+
+  // Fetch available posts from the platform when an account is selected
+  useEffect(() => {
+    if (!formAccount || formMode !== "specific") {
+      setAvailablePosts([]);
+      setPostsError(null);
+      return;
+    }
+    setLoadingPosts(true);
+    setPostsError(null);
+    fetch(`/api/comments/monitors/available-posts?accountId=${formAccount}&limit=20`)
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) {
+          setPostsError(data.error || "撈取貼文失敗");
+          setAvailablePosts([]);
+        } else {
+          setAvailablePosts(data.posts || []);
+        }
+      })
+      .catch(() => setPostsError("網路錯誤，請重試"))
+      .finally(() => setLoadingPosts(false));
+  }, [formAccount, formMode]);
 
   async function fetchBrands() {
     try {
@@ -118,18 +140,6 @@ export default function CommentSettingsPage() {
     }
   }
 
-  async function fetchPublishedPosts() {
-    try {
-      const res = await fetch(`/api/schedule?brandId=${selectedBrand}&status=published`);
-      const data = await res.json();
-      // API returns array directly, not { posts: [...] }
-      const list = Array.isArray(data) ? data : data.posts || [];
-      setPublishedPosts(list.filter((p: ScheduledPost) => p.publishedPostId));
-    } catch {
-      console.error("Failed to fetch posts");
-    }
-  }
-
   async function handleCreateMonitor() {
     if (!formAccount) return alert("請選擇社群帳號");
     if (formMode === "specific" && !formPostId) return alert("請選擇貼文");
@@ -137,7 +147,7 @@ export default function CommentSettingsPage() {
     setCreating(true);
     try {
       const selectedAccount = accounts.find((a) => a.id === formAccount);
-      const selectedPost = publishedPosts.find((p) => p.publishedPostId === formPostId);
+      const selectedPost = availablePosts.find((p) => p.id === formPostId);
 
       const res = await fetch("/api/comments/monitors", {
         method: "POST",
@@ -416,41 +426,43 @@ export default function CommentSettingsPage() {
             </div>
           </div>
 
-          {/* Post selector (specific mode) — filtered by selected account's platform */}
+          {/* Post selector (specific mode) — fetched directly from the platform */}
           {formMode === "specific" && (
             <div>
-              <label className="text-xs text-gray-500 block mb-1">選擇已發布貼文</label>
-              {(() => {
-                const selectedAccount = accounts.find((a) => a.id === formAccount);
-                const filteredPosts = selectedAccount
-                  ? publishedPosts.filter((p) => p.platform === selectedAccount.platform)
-                  : publishedPosts;
-
-                if (!formAccount) {
-                  return <p className="text-xs text-gray-600">請先選擇社群帳號</p>;
-                }
-                if (filteredPosts.length === 0) {
-                  return (
-                    <p className="text-xs text-gray-600">
-                      此帳號（{platformLabel(selectedAccount?.platform || "")}）尚無已發布貼文
-                    </p>
-                  );
-                }
-                return (
+              <label className="text-xs text-gray-500 block mb-1">選擇貼文</label>
+              {!formAccount ? (
+                <p className="text-xs text-gray-600">請先選擇社群帳號</p>
+              ) : loadingPosts ? (
+                <p className="text-xs text-gray-600">⏳ 從平台撈取貼文中...</p>
+              ) : postsError ? (
+                <p className="text-xs text-red-400">{postsError}</p>
+              ) : availablePosts.length === 0 ? (
+                <p className="text-xs text-gray-600">此帳號沒有任何貼文</p>
+              ) : (
+                <>
                   <select
                     value={formPostId}
                     onChange={(e) => setFormPostId(e.target.value)}
                     className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm"
                   >
                     <option value="">請選擇...</option>
-                    {filteredPosts.map((p) => (
-                      <option key={p.publishedPostId} value={p.publishedPostId || ""}>
-                        {p.content.slice(0, 60)}...
-                      </option>
-                    ))}
+                    {availablePosts.map((p) => {
+                      const preview = p.content.slice(0, 60) + (p.content.length > 60 ? "..." : "");
+                      const date = p.createdTime
+                        ? new Date(p.createdTime).toLocaleDateString("zh-TW")
+                        : "";
+                      return (
+                        <option key={p.id} value={p.id}>
+                          {date ? `[${date}] ` : ""}{preview}
+                        </option>
+                      );
+                    })}
                   </select>
-                );
-              })()}
+                  <p className="text-[11px] text-gray-600 mt-1">
+                    顯示最近 {availablePosts.length} 則貼文（從平台即時撈取）
+                  </p>
+                </>
+              )}
             </div>
           )}
 
