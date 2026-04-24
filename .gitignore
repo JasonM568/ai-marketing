@@ -6,3 +6,5 @@ node_modules
 *.zip
 .vercel
 .env*.local
+.DS_Store
+tsconfig.tsbuildinfo
